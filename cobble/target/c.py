@@ -7,6 +7,7 @@ from itertools import chain
 class CTarget(cobble.Target):
   def __init__(self, package, name, deps, sources, cflags):
     super(CTarget, self).__init__(package, name)
+    self._compile_keys = set(['cc', 'cflags', 'depswitch'])
 
     self._local_delta = cobble.env.make_appending_delta(
       cflags = cflags,
@@ -18,7 +19,16 @@ class CTarget(cobble.Target):
     return env_up.derive(self._local_delta)
 
   def _compile_object(self, source, env):
-    o_env = env.subset(self._compile_keys)
+    delta = []
+
+    if env.get('c_deps_include_system', True):
+      delta += [ cobble.env.override('depswitch', '-MD') ]
+    else:
+      delta += [ cobble.env.override('depswitch', '-MMD') ]
+
+    delta += [ cobble.env.subset(self._compile_keys) ]
+
+    o_env = env.derive(delta)
     return {
       'outputs': [ self.package.outpath(o_env, source + '.o') ],
       'rule': 'compile_c_object',
@@ -39,7 +49,6 @@ class Program(CTarget):
     super(Program, self).__init__(package, name, deps, sources, cflags)
 
     self._link_keys = set(['cc', 'linksrcs', 'lflags'])
-    self._compile_keys = set(['cc', 'cflags'])
 
     self._transparent = False
     self.leaf = True
@@ -95,7 +104,6 @@ class Library(CTarget):
     """
     super(Library, self).__init__(package, name, deps, sources, cflags)
 
-    self._compile_keys = set(['cc', 'cflags'])
     self._archive_keys = set(['ar', 'ranlib'])
 
     self._using_delta = cobble.env.make_appending_delta(
@@ -143,7 +151,7 @@ package_verbs = {
 
 ninja_rules = {
   'compile_c_object': {
-    'command': '$cc -MD -MF $depfile $cflags -c -o $out $in',
+    'command': '$cc $depswitch -MF $depfile $cflags -c -o $out $in',
     'description': 'C $out',
     'depfile': '$out.d',
     'deps': 'gcc',

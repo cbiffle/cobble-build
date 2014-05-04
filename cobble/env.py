@@ -121,6 +121,23 @@ def prepend(key, value):
 
   return helper
 
+def override(key, value):
+  """Make a function that will replace any value of key in a dict with
+  value, creating if needed."""
+  def helper(d):
+    d[key] = interpolate(d, value)
+  return helper
+
+def subset(keys):
+  """Make a function that will delete keys not present in the given set."""
+  def helper(d):
+    d_keys = list(d.iterkeys())
+    for k in d_keys:
+      if k not in keys:
+        del d[k]
+
+  return helper
+
 def make_appending_delta(**kw):
   return [append(k, v) for k, v in kw.iteritems()]
 
