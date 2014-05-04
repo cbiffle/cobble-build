@@ -21,8 +21,6 @@ class Env(object):
   It's quite similar to the environment of a Unix shell or process, except
   that it's immutable and can store things that aren't strings (mostly lists).
 
-  Because an Env is immutable, we can fingerprint it once, at creation.
-
   (Note that all these claims of "immutability" really mean "we make it hard
   to mutate it by accident," because Python's immutability guarantees are
   weak.)
@@ -31,7 +29,13 @@ class Env(object):
   def __init__(self, contents):
     """Creates a new Env by defensively copying the provided mapping."""
     self._dict = copy.deepcopy(contents)
-    self.digest = fingerprint_dict(self._dict)
+    self._digest = None
+
+  @property
+  def digest(self):
+    if self._digest is None:
+      self._digest = fingerprint_dict(self._dict)
+    return self._digest
 
   def derive(self, delta):
     """Apply a delta to this Env, producing a new Env."""
@@ -64,6 +68,9 @@ class Env(object):
 
   def __getitem__(self, key):
     return self._dict.__getitem__(key)
+
+  def get(self, key, default = None):
+    return self._dict.get(key, default)
 
   def __len__(self):
     return self._dict.__len__()
