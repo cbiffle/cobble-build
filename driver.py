@@ -8,8 +8,8 @@ import sys
 project = cobble.Project('ROOT', 'OUT')
 package = cobble.Package(project, 'foo')
 
-moo = cobble.target.c.Library(package, 'moo', [], ['moo.c'], [], [], ['UC2'], ['UL2'])
-bar = cobble.target.c.Library(package, 'bar', [moo.identifier], ['bar.c'], [], [], ['UC'], ['UL'])
+moo = cobble.target.c.Library(package, 'moo', [], ['moo.c'], [], ['UC2'], ['UL2'])
+bar = cobble.target.c.Library(package, 'bar', [moo.identifier], ['bar.c'], [], ['UC'], ['UL'])
 foo = cobble.target.c.Program(package, 'foo', [bar.identifier], ['foo.c'], ['CFLAGS'], ['LFLAGS'])
 
 env = cobble.env.Env({})

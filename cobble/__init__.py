@@ -1,6 +1,8 @@
 import functools
 import os.path
 
+import cobble.env
+
 from itertools import chain
 
 
@@ -80,18 +82,36 @@ class Ident(object):
   def __repr__(self):
     return 'cobble.Ident("%s")' % str(self)
 
+
 class Project(object):
   def __init__(self, root, outroot):
     self.root = root
     self.outroot = outroot
+    self.env = cobble.env.Env({})
 
     self.packages = {}
+    self.ninja_rules = {}
 
   def add_package(self, package):
     p = package.relpath
     if p in self.packages:
       raise Exception("Duplicate package: %s" % p)
     self.packages[p] = package
+
+  def add_ninja_rules(self, module, rule_map):
+    for name, args in rule_map.iteritems():
+      try:
+        other_modules, current_args = self.ninja_rules[name]
+      except KeyError:
+        self.ninja_rules[name] = (set([module]), args)
+        continue
+
+      if args != current_args:
+        raise Exception("Rule %(name)s defined in %(module)s is incompatible " +
+                        "with previous definition in %(others)s."
+                        % (name, module, modules))
+      else:
+        other_modules.add(module)
 
   def find_target(self, i):
     return self.packages[i.package_relpath].targets[i.target_name_or_default]
@@ -101,6 +121,16 @@ class Project(object):
 
   def outpath(self, env, *parts):
     return os.path.join(self.outroot, env.digest, *parts)
+
+  def leafpath(self, *parts):
+    return os.path.join(self.outroot, 'latest', *parts)
+
+  def itertargets(self):
+    return chain(*(p.itertargets() for p in self.packages.itervalues()))
+
+  def iterleaves(self):
+    return (target for target in self.itertargets() if target.leaf)
+
 
 class Package(object):
   def __init__(self, project, relpath):
@@ -123,6 +153,12 @@ class Package(object):
   def outpath(self, env, *parts):
     return self.project.outpath(env, self.relpath, *parts)
 
+  def leafpath(self, *parts):
+    return self.project.leafpath(self.relpath, *parts)
+
+  def itertargets(self):
+    return self.targets.itervalues()
+
 
 class Target(object):
   def __init__(self, package, name):
@@ -132,6 +168,7 @@ class Target(object):
     self.identifier = Ident(package.relpath, name)
     self._evaluations_by_env = {}
     self._transparent = True
+    self.leaf = False
 
     self.package.add_target(self)
 
