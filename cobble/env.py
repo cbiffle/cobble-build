@@ -77,6 +77,9 @@ class Env(object):
 
   def iteritems(self):
     return self._dict.iteritems()
+  
+  def dict_copy(self):
+    return dict(self.iteritems())
 
 
 def interpolate(d, value):
@@ -117,3 +120,9 @@ def prepend(key, value):
     d[key] = interpolate(d, value) + current
 
   return helper
+
+def make_appending_delta(**kw):
+  return [append(k, v) for k, v in kw.iteritems()]
+
+def make_prepending_delta(**kw):
+  return [prepend(k, v) for k, v in kw.iteritems()]
