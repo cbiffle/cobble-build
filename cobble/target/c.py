@@ -4,10 +4,17 @@ import os.path
 
 from itertools import chain
 
+
+_compile_keys = frozenset(['cc', 'cflags', 'depswitch'])
+_link_keys = frozenset(['cc', 'linksrcs', 'lflags'])
+_archive_keys = frozenset(['ar', 'ranlib'])
+
+
 class CTarget(cobble.Target):
+  """Base class for C targets."""
+
   def __init__(self, package, name, deps, sources, cflags):
     super(CTarget, self).__init__(package, name)
-    self._compile_keys = set(['cc', 'cflags', 'depswitch'])
 
     self._local_delta = cobble.env.make_appending_delta(
       cflags = cflags,
@@ -19,22 +26,25 @@ class CTarget(cobble.Target):
     return env_up.derive(self._local_delta)
 
   def _compile_object(self, source, env):
-    delta = []
-
-    if env.get('c_deps_include_system', True):
-      delta += [ cobble.env.override('depswitch', '-MD') ]
-    else:
-      delta += [ cobble.env.override('depswitch', '-MMD') ]
-
-    delta += [ cobble.env.subset(self._compile_keys) ]
-
-    o_env = env.derive(delta)
+    o_env = env.derive(chain(self._deps_delta(env),
+                             [ cobble.env.subset(_compile_keys) ]))
     return {
       'outputs': [ self.package.outpath(o_env, source + '.o') ],
       'rule': 'compile_c_object',
       'inputs': [ self.package.inpath(source) ],
       'variables': o_env.dict_copy(),
     }
+
+  def _deps_delta(self, env):
+    """Projects/targets can set c_deps_include_system to False to force GCC's
+    -MMD dependency mode.  It's defaulted off because it tends to produce
+    broken build files.
+    """
+    if env.get('c_deps_include_system', True):
+      return [ cobble.env.override('depswitch', '-MD') ]
+    else:
+      return [ cobble.env.override('depswitch', '-MMD') ]
+
 
 
 class Program(CTarget):
@@ -47,8 +57,6 @@ class Program(CTarget):
     They will be interpolated and appended to their respective env-keys.
     """
     super(Program, self).__init__(package, name, deps, sources, cflags)
-
-    self._link_keys = set(['cc', 'linksrcs', 'lflags'])
 
     self._transparent = False
     self.leaf = True
@@ -72,7 +80,7 @@ class Program(CTarget):
       'inputs': obj_files,
       'implicit': program_env.get('implicit', []),
       'order_only': program_env.get('order_only', []),
-      'variables': program_env.subset(self._link_keys).dict_copy(),
+      'variables': program_env.subset(_link_keys).dict_copy(),
     }
     symlink_path = self.package.leafpath(self.name)
     symlink = {
@@ -104,8 +112,6 @@ class Library(CTarget):
     """
     super(Library, self).__init__(package, name, deps, sources, cflags)
 
-    self._archive_keys = set(['ar', 'ranlib'])
-
     self._using_delta = cobble.env.make_appending_delta(
       cflags = using_cflags,
       lflags = using_lflags,
@@ -123,7 +129,7 @@ class Library(CTarget):
       'inputs': obj_files,
       'implicit': env_local.get('implicit', []),
       'order_only': env_local.get('order_only', []),
-      'variables': env_local.subset(self._archive_keys).dict_copy(),
+      'variables': env_local.subset(_archive_keys).dict_copy(),
     }
 
     using = list(chain(self._using_delta, cobble.env.make_appending_delta(
