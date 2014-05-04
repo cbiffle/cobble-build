@@ -57,7 +57,8 @@ class Loader(object):
     if self._defaults_provided:
       raise Exception("multiple calls to defaults in BUILD.conf")
 
-    self.project.env = cobble.env.Env(kw)
+    delta = cobble.env.make_appending_delta(**kw)
+    self.project.env = self.project.env.derive(delta)
     self._defaults_provided = True
 
   def _conf_install(self, module):
