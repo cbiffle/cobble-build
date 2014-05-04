@@ -159,6 +159,12 @@ class Package(object):
   def itertargets(self):
     return self.targets.itervalues()
 
+  def resolve(self, reference):
+    if reference.startswith(':'):
+      return Ident(self.relpath, reference[1:])
+    else:
+      return Ident.parse(reference)
+
 
 class Target(object):
   def __init__(self, package, name):

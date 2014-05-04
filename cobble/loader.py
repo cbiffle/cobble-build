@@ -38,6 +38,9 @@ class Loader(object):
     with open(package.inpath('BUILD'), 'r') as f:
       exec(f, globals)
 
+  def include_packages(self, idents):
+    self._packages_to_visit += idents
+
   def _load_build_conf(self):
     globals = {
       'seed': self._conf_seed,

@@ -96,7 +96,7 @@ class Library(CTarget):
     super(Library, self).__init__(package, name, deps, sources, cflags)
 
     self._compile_keys = set(['cc', 'cflags'])
-    self._archive_keys = set(['ar'])
+    self._archive_keys = set(['ar', 'ranlib'])
 
     self._using_delta = cobble.env.make_appending_delta(
       cflags = using_cflags,
@@ -126,11 +126,19 @@ class Library(CTarget):
     return (using, products)
 
 
-def c_binary(loader, package, name, sources = []):
-  return Program(package, name, [], sources, [], [])
+def c_binary(loader, package, name, sources = [], deps = []):
+  deps = [package.resolve(d) for d in deps]
+  loader.include_packages(deps)
+  return Program(package, name, deps, sources, [], [])
+
+def c_library(loader, package, name, sources = [], deps = []):
+  deps = [package.resolve(d) for d in deps]
+  loader.include_packages(deps)
+  return Library(package, name, deps, sources, [], [], [])
 
 package_verbs = {
   'c_binary': c_binary,
+  'c_library': c_library,
 }
 
 ninja_rules = {
@@ -143,6 +151,10 @@ ninja_rules = {
   'link_c_program': {
     'command': '$cc $lflags -o $out $linksrcs',
     'description': 'LINK $out',
+  },
+  'archive_c_library': {
+    'command': '$ar rc $out $in && $ranlib $out',
+    'description': 'AR $out',
   },
   'symlink_leaf': {
     'command': 'ln -sf $symlink_target $out',
