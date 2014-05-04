@@ -128,6 +128,13 @@ def override(key, value):
     d[key] = interpolate(d, value)
   return helper
 
+def remove(key):
+  """Make a function that will remove any value of key in a dict."""
+  def helper(d):
+    if key in d:
+      del d[key]
+  return helper
+
 def subset(keys):
   """Make a function that will delete keys not present in the given set."""
   def helper(d):

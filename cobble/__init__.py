@@ -259,7 +259,6 @@ class Target(object):
   def __repr__(self):
     return "<%s %s>" % (self.__class__.__name__, self.identifier)
 
-
 def topo_merge(dicts):
   merged = {}
   for (target, env), (rank, using) in chain(*[m.iteritems() for m in dicts]):
@@ -277,3 +276,30 @@ def topo_sort(mapping):
     return (r, t.identifier, e.digest, u)
 
   return sorted(mapping.iteritems(), key = key)
+
+
+def product(env, outputs, rule, inputs = None, implicit = None,
+            order_only = None):
+  def _process(v, ek, d, dk):
+    if v is None:
+      v = env.get(ek, None)
+    else:
+      v = v + env.get(ek, [])
+
+    if v:
+      d[dk] = v
+
+  delta = [
+    cobble.env.remove('__implicit__'),
+    cobble.env.remove('__order_only__'),
+  ]
+  p = {
+    'outputs': outputs,
+    'rule': rule,
+    'inputs': inputs,
+    'variables': env.derive(delta).dict_copy(),
+  }
+  _process(implicit, '__implicit__', p, 'implicit')
+  _process(order_only, '__order_only__', p, 'order_only')
+
+  return p

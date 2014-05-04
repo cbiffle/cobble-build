@@ -4,10 +4,11 @@ import os.path
 
 from itertools import chain
 
+_common_keys = frozenset(['__implicit__', '__order_only__'])
 
-_compile_keys = frozenset(['cc', 'cflags', 'depswitch'])
-_link_keys = frozenset(['cc', 'linksrcs', 'lflags'])
-_archive_keys = frozenset(['ar', 'ranlib'])
+_compile_keys = _common_keys | frozenset(['cc', 'cflags', 'depswitch'])
+_link_keys = _common_keys | frozenset(['cc', 'linksrcs', 'lflags'])
+_archive_keys = _common_keys | frozenset(['ar', 'ranlib'])
 
 
 class CTarget(cobble.Target):
@@ -28,12 +29,11 @@ class CTarget(cobble.Target):
   def _compile_object(self, source, env):
     o_env = env.derive(chain(self._deps_delta(env),
                              [ cobble.env.subset(_compile_keys) ]))
-    return {
-      'outputs': [ self.package.outpath(o_env, source + '.o') ],
-      'rule': 'compile_c_object',
-      'inputs': [ self.package.inpath(source) ],
-      'variables': o_env.dict_copy(),
-    }
+    return cobble.product(o_env,
+      outputs = [ self.package.outpath(o_env, source + '.o') ],
+      rule = 'compile_c_object',
+      inputs = [ self.package.inpath(source) ],
+    )
 
   def _deps_delta(self, env):
     """Projects/targets can set c_deps_include_system to False to force GCC's
@@ -72,16 +72,15 @@ class Program(CTarget):
 
     program_env = env_local.derive(cobble.env.make_prepending_delta(
       linksrcs = obj_files,
-    ))
+    )).subset(_link_keys)
+
     program_path = self.package.outpath(program_env, self.name)
-    program = {
-      'outputs': [ program_path ],
-      'rule': 'link_c_program',
-      'inputs': obj_files,
-      'implicit': program_env.get('implicit', []),
-      'order_only': program_env.get('order_only', []),
-      'variables': program_env.subset(_link_keys).dict_copy(),
-    }
+    program = cobble.product(program_env,
+      outputs = [ program_path ],
+      rule = 'link_c_program',
+      inputs = obj_files,
+    )
+
     symlink_path = self.package.leafpath(self.name)
     symlink = {
       'outputs': [ symlink_path ],
@@ -123,17 +122,14 @@ class Library(CTarget):
     obj_files = list(chain(*[p['outputs'] for p in objects]))
 
     out = self.package.outpath(env_local, 'lib' + self.name + '.a')
-    library = {
-      'outputs': [ out ],
-      'rule': 'archive_c_library',
-      'inputs': obj_files,
-      'implicit': env_local.get('implicit', []),
-      'order_only': env_local.get('order_only', []),
-      'variables': env_local.subset(_archive_keys).dict_copy(),
-    }
+    library = cobble.product(env_local,
+      outputs = [ out ],
+      rule = 'archive_c_library',
+      inputs = obj_files,
+    )
 
     using = list(chain(self._using_delta, cobble.env.make_appending_delta(
-      implicit = [ out ],
+      __implicit__ = [ out ],
       linksrcs = [ out ],
     )))
     products = objects + [ library ]
