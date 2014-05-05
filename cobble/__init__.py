@@ -120,7 +120,7 @@ class Project(object):
     return os.path.join(self.root, *parts)
 
   def outpath(self, env, *parts):
-    return os.path.join(self.outroot, env.digest, *parts)
+    return os.path.join(self.outroot, 'env', env.digest, *parts)
 
   def leafpath(self, *parts):
     return os.path.join(self.outroot, 'latest', *parts)
