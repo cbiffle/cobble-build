@@ -4,10 +4,9 @@ import os.path
 
 from itertools import chain
 
-_common_keys = frozenset(['__implicit__', '__order_only__'])
-
-_link_keys = _common_keys | frozenset(['cxx', 'link_srcs', 'link_flags'])
-_archive_keys = _common_keys | frozenset(['ar', 'ranlib'])
+_compile_keys = frozenset(['__order_only__', 'c_depswitch'])
+_link_keys = frozenset(['__implicit__', 'cxx', 'link_srcs', 'link_flags'])
+_archive_keys = frozenset(['ar', 'ranlib'])
 
 
 class CTarget(cobble.Target):
@@ -25,17 +24,17 @@ class CTarget(cobble.Target):
     return env_up.derive(self._local_delta)
 
   _file_type_map = {
-    '.c':   ('compile_c_obj',   ['cc',   'c_flags',    'c_depswitch']),
-    '.cc':  ('compile_cxx_obj', ['cxx',  'cxx_flags',  'c_depswitch']),
-    '.cpp': ('compile_cxx_obj', ['cxx',  'cxx_flags',  'c_depswitch']),
-    '.S':   ('assemble_obj_pp', ['aspp', 'aspp_flags', 'c_depswitch']),
+    '.c':   ('compile_c_obj',   ['cc',   'c_flags']),
+    '.cc':  ('compile_cxx_obj', ['cxx',  'cxx_flags']),
+    '.cpp': ('compile_cxx_obj', ['cxx',  'cxx_flags']),
+    '.S':   ('assemble_obj_pp', ['aspp', 'aspp_flags']),
   }
 
   def _compile_object(self, source, env):
     ext = os.path.splitext(source)[1]
     rule, keys = self._file_type_map[ext]
 
-    keys = _common_keys | frozenset(keys)
+    keys = _compile_keys | frozenset(keys)
 
     o_env = env.derive(chain(self._deps_delta(env),
                              [ cobble.env.subset(keys) ]))
@@ -99,7 +98,7 @@ class Program(CTarget):
     }
 
     using = cobble.env.make_appending_delta(
-      implicit = [self.identifier],
+      __implicit__ = [self.identifier],
     )
     products = objects + [ program, symlink ]
     return (using, products)
@@ -121,7 +120,11 @@ class Library(CTarget):
     obj_files = list(chain(*[p['outputs'] for p in objects]))
 
     out = self.package.outpath(env_local, 'lib' + self.name + '.a')
-    library = cobble.product(env_local.subset(_archive_keys),
+    out_delta = [
+      cobble.env.subset(_archive_keys),
+      cobble.env.append('inputs', obj_files),
+    ]
+    library = cobble.product(env_local.derive(out_delta),
       outputs = [ out ],
       rule = 'archive_c_library',
       inputs = obj_files,
