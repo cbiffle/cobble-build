@@ -162,6 +162,10 @@ class Package(object):
   def genpath(self, *parts):
     return self.project.genpath(self.relpath, *parts)
 
+  @property
+  def genroot(self):
+    return self.genpath()
+
   def itertargets(self):
     return self.targets.itervalues()
 

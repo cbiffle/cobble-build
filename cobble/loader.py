@@ -30,7 +30,9 @@ class Loader(object):
   def _visit_package(self, relpath):
     package = cobble.Package(self.project, relpath)
     
-    globals = {}
+    globals = {
+      'GEN': package.genroot,
+    }
     for m in self._installed_modules.itervalues():
       for name, fn in m.package_verbs.iteritems():
         globals[name] = functools.partial(fn, self, package)
