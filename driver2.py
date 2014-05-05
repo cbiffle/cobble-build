@@ -20,6 +20,10 @@ for name, (modules, args) in project.ninja_rules.iteritems():
 
 unique_products = {}
 for target in project.iterleaves():
+  writer.comment('')
+  writer.comment('Processing %s' % target.identifier)
+  writer.comment('')
+  writer.newline()
   topomap, products = target.evaluate(project.env)
   for product in products:
     key = ' '.join(product['outputs'])
