@@ -125,6 +125,9 @@ class Project(object):
   def leafpath(self, *parts):
     return os.path.join(self.outroot, 'latest', *parts)
 
+  def genpath(self, *parts):
+    return os.path.join(self.outroot, 'gen', *parts)
+
   def itertargets(self):
     return chain(*(p.itertargets() for p in self.packages.itervalues()))
 
@@ -155,6 +158,9 @@ class Package(object):
 
   def leafpath(self, *parts):
     return self.project.leafpath(self.relpath, *parts)
+
+  def genpath(self, *parts):
+    return self.project.genpath(self.relpath, *parts)
 
   def itertargets(self):
     return self.targets.itervalues()
