@@ -18,9 +18,18 @@ for name, (modules, args) in project.ninja_rules.iteritems():
   writer.rule(name = name, **args)
   writer.newline()
 
+unique_products = {}
 for target in project.iterleaves():
   topomap, products = target.evaluate(project.env)
   for product in products:
+    key = ' '.join(product['outputs'])
+    if key in unique_products:
+      if product != unique_products[key]:
+        raise Exception("Duplicate products with non-matching rules!")
+      continue
+
+    unique_products[key] = product
+
     writer.build(**product)
     writer.newline()
 
