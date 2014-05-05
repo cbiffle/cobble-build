@@ -68,7 +68,7 @@ class Program(CTarget):
     self._extra_delta = cobble.env.make_appending_delta(**extra)
 
   def _derive_down(self, env_up):
-    return env_up.derive(self._extra_delta)
+    return self.package.project.env.derive(self._extra_delta)
 
   def _using_and_products(self, env_local):
     sources = env_local.get('sources', [])
