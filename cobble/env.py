@@ -86,7 +86,12 @@ def interpolate(d, value):
   """More flexible version of Python's % operator for string-dict interpolation.
   """
   if isinstance(value, str):
-    return value % d
+    try:
+      return value % d
+    except KeyError as e:
+      k = e.args[0]
+      raise Exception('Environment key %s not found; available keys are: %s'
+                      % (k, d.keys()))
   elif isinstance(value, collections.Iterable):
     return [interpolate(d, elt) for elt in value]
   else:
