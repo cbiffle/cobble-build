@@ -1,8 +1,14 @@
 import cobble.loader
 import cobble.ninja_syntax
+import os.path
 import sys
 
-project = cobble.loader.load(sys.argv[1], sys.argv[2])
+project_root = sys.argv[1]
+project_module_dir = os.path.join(project_root, 'site_cobble')
+if os.path.isdir(project_module_dir):
+  sys.path += [ project_module_dir ]
+
+project = cobble.loader.load(project_root, sys.argv[2])
 
 writer = cobble.ninja_syntax.Writer(sys.stdout)
 
