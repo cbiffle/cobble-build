@@ -46,8 +46,8 @@ class Loader(object):
   def _load_build_conf(self):
     globals = {
       'seed': self._conf_seed,
-      'defaults': self._conf_defaults,
       'install': self._conf_install,
+      'environment': self._conf_environment,
     }
     with open(self.project.inpath('BUILD.conf'), 'r') as f:
       exec(f, globals)
@@ -65,3 +65,19 @@ class Loader(object):
 
   def _conf_install(self, module):
     self._installed_modules[module.__name__] = module
+
+  def _conf_environment(self, name, base = None, contents = {}):
+    if name in self.project.named_envs:
+      raise Exception("Duplicate environment name: %s" % name)
+
+    if base:
+      try:
+        base_env = self.project.named_envs[base]
+      except KeyError:
+        raise Exception("Environment %s: base %s does not exist" % (name, base))
+    else:
+      base_env = cobble.env.Env({ 'ROOT': self.project.root,
+                                  'OUT':  self.project.outroot })
+
+    env = base_env.derive(cobble.env.make_appending_delta(**contents))
+    self.project.named_envs[name] = env

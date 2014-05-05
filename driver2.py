@@ -30,7 +30,7 @@ for target in project.iterleaves():
   writer.comment('Processing %s' % target.identifier)
   writer.comment('')
   writer.newline()
-  topomap, products = target.evaluate(project.env)
+  topomap, products = target.evaluate(None)
   for product in products:
     key = ' '.join(product['outputs'])
     if key in unique_products:

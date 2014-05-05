@@ -63,16 +63,18 @@ class CCompTarget(CTarget):
 class Program(CCompTarget):
   """A program compiles some source files and produces a binary."""
 
-  def __init__(self, package, name, deps, sources, local, extra):
+  def __init__(self, package, name, deps, sources, local, environment, extra):
     super(Program, self).__init__(package, name, deps, sources, local)
 
-    self._transparent = False
+    self.environment = environment
     self.leaf = True
+    self._transparent = False
 
     self._extra_delta = cobble.env.make_appending_delta(**extra)
 
   def _derive_down(self, env_up):
-    return self.package.project.env.derive(self._extra_delta)
+    env = self.package.project.named_envs[self.environment]
+    return env.derive(self._extra_delta)
 
   def _using_and_products(self, env_local):
     sources = env_local.get('sources', [])
@@ -159,7 +161,7 @@ class Preprocess(CTarget):
     self.leaf = True
 
   def _derive_local(self, env_up):
-    return env_up.derive(self._local_delta)
+    return self.package.project.named_envs['default'].derive(self._local_delta)
 
   def _using_and_products(self, env_local):
     pp_env = \
@@ -188,7 +190,7 @@ class Preprocess(CTarget):
     return ([], products)
 
 
-def c_binary(loader, package, name,
+def c_binary(loader, package, name, environment,
              sources = [],
              deps = [],
              extra = {},
@@ -196,7 +198,7 @@ def c_binary(loader, package, name,
 
   deps = [package.resolve(d) for d in deps]
   loader.include_packages(deps)
-  return Program(package, name, deps, sources, local, extra)
+  return Program(package, name, deps, sources, local, environment, extra)
 
 
 def c_library(loader, package, name,

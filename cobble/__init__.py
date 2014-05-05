@@ -87,7 +87,7 @@ class Project(object):
   def __init__(self, root, outroot):
     self.root = root
     self.outroot = outroot
-    self.env = cobble.env.Env({'ROOT': root, 'OUT': outroot})
+    self.named_envs = {}
 
     self.packages = {}
     self.ninja_rules = {}
