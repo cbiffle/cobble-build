@@ -150,8 +150,11 @@ class Package(object):
       raise Exception("Duplicate target: %s" % target.identifier)
     self.targets[n] = target
 
-  def inpath(self, *parts):
-    return self.project.inpath(self.relpath, *parts)
+  def inpath(self, path):
+    if path.startswith('@'):
+      return self.project.genpath(path[1:])
+    else:
+      return self.project.inpath(self.relpath, path)
 
   def outpath(self, env, *parts):
     return self.project.outpath(env, self.relpath, *parts)
