@@ -114,7 +114,10 @@ class Project(object):
         other_modules.add(module)
 
   def find_target(self, i):
-    return self.packages[i.package_relpath].targets[i.target_name_or_default]
+    try:
+      return self.packages[i.package_relpath].targets[i.target_name_or_default]
+    except KeyError:
+      raise Exception("No such target: %s" % i)
 
   def inpath(self, *parts):
     return os.path.join(self.root, *parts)
