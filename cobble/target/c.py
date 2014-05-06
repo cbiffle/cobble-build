@@ -27,8 +27,11 @@ class CTarget(cobble.Target):
 class CCompTarget(CTarget):
   """Base class for C compilation targets."""
 
-  def __init__(self, package, name, deps, sources, local):
-    super(CTarget, self).__init__(package, name)
+  def __init__(self, loader, package, name, deps, sources, local):
+    super(CTarget, self).__init__(loader, package, name)
+
+    deps = [package.resolve(d) for d in deps]
+    loader.include_packages(deps)
 
     self._local_delta = cobble.env.make_appending_delta(
       sources = sources,
@@ -63,8 +66,12 @@ class CCompTarget(CTarget):
 class Program(CCompTarget):
   """A program compiles some source files and produces a binary."""
 
-  def __init__(self, package, name, deps, sources, local, environment, extra):
-    super(Program, self).__init__(package, name, deps, sources, local)
+  def __init__(self, loader, package, name, environment,
+               deps = [],
+               sources = [],
+               local = {},
+               extra = {}):
+    super(Program, self).__init__(loader, package, name, deps, sources, local)
 
     self.environment = environment
     self.leaf = True
@@ -113,8 +120,12 @@ class Program(CCompTarget):
 class Library(CCompTarget):
   """A library compiles some source files to be linked into something else."""
 
-  def __init__(self, package, name, deps, sources, local, using):
-    super(Library, self).__init__(package, name, deps, sources, local)
+  def __init__(self, loader, package, name,
+               deps = [],
+               sources = [],
+               local = {},
+               using = {}):
+    super(Library, self).__init__(loader, package, name, deps, sources, local)
     self._using_delta = cobble.env.make_appending_delta(**using)
 
   def _using_and_products(self, env_local):
@@ -152,8 +163,8 @@ class Library(CCompTarget):
 class Preprocess(CTarget):
   """Runs the preprocessor on a file."""
 
-  def __init__(self, package, name, source, output, local):
-    super(Preprocess, self).__init__(package, name)
+  def __init__(self, loader, package, name, source, output, local = {}):
+    super(Preprocess, self).__init__(loader, package, name)
 
     self.source = source
     self.output = output
@@ -190,38 +201,10 @@ class Preprocess(CTarget):
     return ([], products)
 
 
-def c_binary(loader, package, name, environment,
-             sources = [],
-             deps = [],
-             extra = {},
-             local = {}):
-
-  deps = [package.resolve(d) for d in deps]
-  loader.include_packages(deps)
-  return Program(package, name, deps, sources, local, environment, extra)
-
-
-def c_library(loader, package, name,
-              sources = [],
-              deps = [],
-              local = {},
-              using = {}):
-  deps = [package.resolve(d) for d in deps]
-  loader.include_packages(deps)
-  return Library(package, name, deps, sources, local, using)
-
-
-def c_preprocess(loader, package, name,
-              source,
-              output,
-              local = {}):
-  return Preprocess(package, name, source, output, local)
-
-
 package_verbs = {
-  'c_binary':     c_binary,
-  'c_library':    c_library,
-  'c_preprocess': c_preprocess,
+  'c_binary':     Program,
+  'c_library':    Library,
+  'c_preprocess': Preprocess,
 }
 
 ninja_rules = {

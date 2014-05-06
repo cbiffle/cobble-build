@@ -183,7 +183,8 @@ class Package(object):
 
 
 class Target(object):
-  def __init__(self, package, name):
+  def __init__(self, loader, package, name):
+    self.loader = loader
     self.package = package
     self.name = name
 
