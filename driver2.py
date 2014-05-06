@@ -1,16 +1,51 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import argparse
 import cobble.loader
 import cobble.ninja_syntax
 import os.path
 import sys
 
-project_root = sys.argv[1]
-project_module_dir = os.path.join(project_root, 'site_cobble')
+parser = argparse.ArgumentParser()
+parser.add_argument('project',
+                    help = 'Directory at root of project (with BUILD.conf)')
+
+parser.add_argument('--regen',
+                    help = 'Allow overwriting build.ninja (default: no)',
+                    action = 'store_true')
+
+args = parser.parse_args()
+
+# Argument validation
+
+if os.path.samefile(args.project, '.'):
+  print("I won't use your project directory as output directory.",
+        file = sys.stderr)
+  sys.exit(1)
+
+if not os.path.isdir(args.project):
+  print('Project dir missing or invalid: %s' % args.project, file = sys.stderr)
+  sys.exit(1)
+
+if (os.path.exists('build.ninja') and not args.regen):
+  print("I won't overwrite build.ninja (use --regen to override)",
+        file = sys.stderr)
+  sys.exit(1)
+
+# Actual work
+
+project_module_dir = os.path.join(args.project, 'site_cobble')
 if os.path.isdir(project_module_dir):
   sys.path += [ project_module_dir ]
 
-project = cobble.loader.load(project_root, sys.argv[2])
+project = cobble.loader.load(args.project, '.')
 
-writer = cobble.ninja_syntax.Writer(sys.stdout)
+writer = cobble.ninja_syntax.Writer(open('build.ninja', 'w'))
+
+
+print('Generating %s...' % build_file, file = sys.stderr)
 
 for name, (modules, args) in project.ninja_rules.iteritems():
   if len(modules) > 1:
@@ -43,3 +78,4 @@ for target in project.iterleaves():
     writer.build(**product)
     writer.newline()
 
+print('Done.', file = sys.stderr)
