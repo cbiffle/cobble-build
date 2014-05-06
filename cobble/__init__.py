@@ -1,3 +1,4 @@
+import collections
 import functools
 import os.path
 
@@ -88,6 +89,7 @@ class Project(object):
     self.root = root
     self.outroot = outroot
     self.named_envs = {}
+    self.groups = collections.defaultdict(set)
 
     self.packages = {}
     self.ninja_rules = {}
