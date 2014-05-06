@@ -27,9 +27,12 @@ class Env(object):
   weak.)
   """
 
-  def __init__(self, contents):
+  def __init__(self, contents, _copy_contents = True):
     """Creates a new Env by defensively copying the provided mapping."""
-    self._dict = copy.deepcopy(contents)
+    if _copy_contents:
+      self._dict = copy.deepcopy(contents)
+    else:
+      self._dict = contents
     self._digest = None
 
   @property
@@ -40,18 +43,17 @@ class Env(object):
 
   def derive(self, delta):
     """Apply a delta to this Env, producing a new Env."""
-    # Yes, this double-copies.  Without a way to define a private constructor
-    # I don't see how to allow derive to avoid the constructor's defensive
-    # copy.
     new_dict = copy.deepcopy(self._dict)
     for change in delta:
       change(new_dict)
-    return Env(new_dict)
+    return Env(new_dict, _copy_contents = False)
 
   def subset(self, keys):
     """Derive a new Env containing the intersection between this Env's keys
     and the provided Iterable of key names."""
-    return Env({k : self._dict[k] for k in keys if k in self._dict})
+    return Env({k : copy.deepcopy(self._dict[k])
+                   for k in keys if k in self._dict},
+               _copy_contents = False)
 
   def __str__(self):
     return "Env(%s)" % self.digest
