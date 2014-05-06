@@ -156,6 +156,8 @@ class Package(object):
   def inpath(self, path):
     if path.startswith('@'):
       return self.project.genpath(path[1:])
+    elif path.startswith('//'):
+      return self.project.inpath(path[2:])
     else:
       return self.project.inpath(self.relpath, path)
 
