@@ -159,6 +159,22 @@ class Library(CCompTarget):
     products = objects + [ library ]
     return (using, products)
 
+  def extend_when(self, env_p, sources = [], deps = [], local = {}, using = {}):
+    deps = [self.package.resolve(d) for d in deps]
+    self.loader.include_packages(deps)
+
+    delta = cobble.env.make_appending_delta(
+      sources = sources,
+      deps = deps,
+    ) + cobble.env.make_appending_delta(**local)
+
+    self._local_delta += cobble.env.make_delta_conditional(delta, env_p)
+
+    using_delta = cobble.env.make_appending_delta(**using)
+    self._using_delta += cobble.env.make_delta_conditional(using_delta, env_p)
+
+    return self
+
 
 class Preprocess(CTarget):
   """Runs the preprocessor on a file."""

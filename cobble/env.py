@@ -1,6 +1,7 @@
 import collections
 import copy
 import cPickle
+import functools
 import hashlib
 
 
@@ -155,3 +156,10 @@ def make_appending_delta(**kw):
 
 def make_prepending_delta(**kw):
   return [prepend(k, v) for k, v in kw.iteritems()]
+
+def make_delta_conditional(delta, predicate):
+  def helper(change, d):
+    if predicate(d):
+      change(d)
+
+  return [functools.partial(helper, c) for c in delta]
