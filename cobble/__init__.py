@@ -139,6 +139,11 @@ class Project(object):
   def iterleaves(self):
     return (target for target in self.itertargets() if target.leaf)
 
+  def iterfiles(self):
+    yield self.inpath('BUILD.conf')
+    for p in self.packages.itervalues():
+      yield p.inpath('BUILD')
+
 
 class Package(object):
   def __init__(self, project, relpath):

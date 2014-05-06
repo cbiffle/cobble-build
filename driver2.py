@@ -42,10 +42,28 @@ if os.path.isdir(project_module_dir):
 
 project = cobble.loader.load(args.project, '.')
 
-writer = cobble.ninja_syntax.Writer(open('build.ninja', 'w'))
+writer = cobble.ninja_syntax.Writer(open('.build.ninja.tmp', 'w'))
 
+generate_command_line = ' '.join([
+  __file__,
+  '--regen',
+  args.project,
+])
 
-print('Generating %s...' % build_file, file = sys.stderr)
+writer.comment('Automatic regeneration')
+writer.rule(
+  name = 'generate_ninja',
+  command = generate_command_line,
+  description = '(cobbling something together)',
+)
+
+writer.build(
+  outputs = [ 'build.ninja' ],
+  rule = 'generate_ninja',
+  inputs = list(project.iterfiles()),
+)
+
+writer.newline()
 
 for name, (modules, args) in project.ninja_rules.iteritems():
   if len(modules) > 1:
@@ -78,4 +96,4 @@ for target in project.iterleaves():
     writer.build(**product)
     writer.newline()
 
-print('Done.', file = sys.stderr)
+os.rename('.build.ninja.tmp', 'build.ninja')
