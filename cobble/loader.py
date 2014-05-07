@@ -1,6 +1,7 @@
 import cobble
 import cobble.env
 import functools
+import importlib
 
 def load(root, outroot):
   return Loader(root, outroot).load()
@@ -63,7 +64,8 @@ class Loader(object):
     self.project.env = self.project.env.derive(delta)
     self._defaults_provided = True
 
-  def _conf_install(self, module):
+  def _conf_install(self, module_name):
+    module = importlib.import_module(module_name)
     self._installed_modules[module.__name__] = module
 
   def _conf_environment(self, name, base = None, contents = {}):
