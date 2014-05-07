@@ -1,16 +1,13 @@
 #!/usr/bin/python
 
-"""Python module for generating .ninja files.
-
-Note that this is emphatically not a required piece of Ninja; it's
-just a helpful utility for build-file-generation systems that already
-use Python.
+"""Python module for generating .ninja files, derived from code provided by
+the Ninja authors.
 """
 
 import textwrap
 import re
 
-def escape_path(word):
+def _escape_path(word):
     return word.replace('$ ','$$ ').replace(' ','$ ').replace(':', '$:')
 
 class Writer(object):
@@ -41,52 +38,44 @@ class Writer(object):
              rspfile_content=None, deps=None):
         self._line('rule %s' % name)
         self.variable('command', command, indent=1)
-        if description:
-            self.variable('description', description, indent=1)
-        if depfile:
-            self.variable('depfile', depfile, indent=1)
+        self._maybe_variable('description', description, indent=1)
+        self._maybe_variable('depfile', depfile, indent=1)
+        self._maybe_variable('pool', pool, indent=1)
+        self._maybe_variable('rspfile', rspfile, indent=1)
+        self._maybe_variable('rspfile_content', rspfile_content, indent=1)
+        self._maybe_variable('deps', deps, indent=1)
+
         if generator:
             self.variable('generator', '1', indent=1)
-        if pool:
-            self.variable('pool', pool, indent=1)
         if restat:
-            self.variable('restat', '1', indent=1)
-        if rspfile:
-            self.variable('rspfile', rspfile, indent=1)
-        if rspfile_content:
-            self.variable('rspfile_content', rspfile_content, indent=1)
-        if deps:
-            self.variable('deps', deps, indent=1)
+           self.variable('restat', '1', indent=1)
+
+    def _maybe_variable(self, key, value, indent=0):
+      if value:
+        self.variable(key, value, indent)
 
     def build(self, outputs, rule, inputs=None, implicit=None, order_only=None,
               variables=None):
-        outputs = self._as_list(outputs)
-        all_inputs = self._as_list(inputs)[:]
-        out_outputs = list(map(escape_path, outputs))
-        all_inputs = list(map(escape_path, all_inputs))
+        out_outputs = list(map(_escape_path, self._as_list(outputs)))
+        all_inputs = list(map(_escape_path, self._as_list(inputs)))
 
         if implicit:
-            implicit = map(escape_path, self._as_list(implicit))
             all_inputs.append('|')
-            all_inputs.extend(implicit)
+            all_inputs.extend(map(_escape_path, self._as_list(implicit)))
         if order_only:
-            order_only = map(escape_path, self._as_list(order_only))
             all_inputs.append('||')
-            all_inputs.extend(order_only)
+            all_inputs.extend(map(_escape_path, self._as_list(order_only)))
 
         self._line('build %s: %s' % (' '.join(out_outputs),
-                                        ' '.join([rule] + all_inputs)))
+                                     ' '.join([rule] + all_inputs)))
 
-        if variables:
-            if isinstance(variables, dict):
-                iterator = iter(variables.items())
-            else:
-                iterator = iter(variables)
+        if isinstance(variables, dict):
+            iterator = variables.iteritems()
+        else:
+            iterator = iter(variables or [])
 
-            for key, val in iterator:
-                self.variable(key, val, indent=1)
-
-        return outputs
+        for key, val in iterator:
+            self.variable(key, val, indent=1)
 
     def include(self, path):
         self._line('include %s' % path)
