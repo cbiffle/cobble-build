@@ -5,3 +5,17 @@ Cobble distills my ideas about how to build software -- specifically software
 written in C -- into a few hundred lines of Python.
 
 Cobble is currently a work in progress.
+
+Cobble is built on the shoulders of others:
+
+ - [Ninja](http://martine.github.io/ninja/) does all the hard work behind the scenes.
+ - The build model was originally dreamed up by [Anton Staaf] in his Make-based build system.
+ - Aspects of the design are influenced by [SCons](http://scons.org), [GYP](https://code.google.com/p/gyp/),
+   and [GN](https://code.google.com/p/chromium/wiki/gn).
+
+
+[Ninja]: http://martine.github.io/ninja/
+[SCons]: http://scons.org
+[GYP]: https://code.google.com/p/gyp/
+[GN]: https://code.google.com/p/chromium/wiki/gn
+[Anton Staaf]: http://socialhacker.com
