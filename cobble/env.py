@@ -84,6 +84,12 @@ class Env(object):
   def dict_copy(self):
     return dict(self.iteritems())
 
+  def __hash__(self):
+    return hash(self.digest)
+
+  def __eq__(self, other):
+    return self.digest == other.digest and self._dict == other._dict
+
 
 def interpolate(d, value):
   """More flexible version of Python's % operator for string-dict interpolation.
