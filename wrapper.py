@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import cobble.loader
 import cobble.ninja_syntax
+import itertools
 import os.path
 import subprocess
 import sys
@@ -78,7 +79,7 @@ def init_build_dir(args):
     writer.comment('')
     writer.newline()
     topomap, products = target.evaluate(None)
-    for product in products:
+    for product in itertools.chain(*products.itervalues()):
       key = ' '.join(product['outputs'])
       if key in unique_products:
         if product != unique_products[key]:
@@ -89,6 +90,13 @@ def init_build_dir(args):
 
       writer.build(**product)
       writer.newline()
+
+    writer.build(
+      outputs = [ str(target.identifier) ],
+      rule = 'phony',
+      implicit = [o for p in products.get((target, None), [])
+                    for o in p['outputs']],
+    )
 
   os.rename('.build.ninja.tmp', 'build.ninja')  
 
@@ -107,6 +115,8 @@ def build(args):
     cmd += [ '-d', 'explain' ]
   if args.stats:
     cmd += [ '-d', 'stats' ]
+
+  cmd += args.targets
 
   subprocess.call(cmd)
 
@@ -156,7 +166,12 @@ build_parser.add_argument('--stats',
                           help = "at end, print ninja internal stats",
                           action = 'store_true')
 
+build_parser.add_argument('targets',
+                          nargs = '*',
+                          help = 'Targets to build; if unspecified, build all.')
+
 build_parser.set_defaults(go = build)
+
 
 args = parser.parse_args()
 args.go(args)

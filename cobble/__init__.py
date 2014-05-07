@@ -222,10 +222,9 @@ class Target(object):
     This processes the entire contextual subDAG beneath this target, so
     memoization is important to keep things linear.
 
-    The result is a pair of a dict and an iterable.  The iterable gives build
-    products.
+    The result is a pair dicts.
 
-    The dict is a mapping of the form
+    The first dict is a mapping of the form
       (target, env_up) -> (rank, using_delta)
     ...for all target evaluations in the subDAG.
 
@@ -241,6 +240,12 @@ class Target(object):
     The using_delta is the effect on the environment of dependent targets.
     These must be evaluated topologically.  To obtain a topological ordering
     of using_deltas from rank information, use cobble.topo_sort.
+
+    The *second* dict of the result is a mapping
+      (target, env) -> [product]
+
+    ...where 'product' is a dict giving the arguments to the Ninja syntax
+    writer's 'build' method.
     """
 
     env_down = self._derive_down(env_up)
@@ -250,21 +255,26 @@ class Target(object):
 
     deps = [self.project.find_target(id) for id in env_local_a.get('deps', [])]
     dep_results = [dep.evaluate(env_down) for dep in deps]
+    # [({(t, e):(r,u)}, {(t, e):[p]}]
 
     dep_map = topo_merge([m[0] for m in dep_results])
-    dep_products = chain(*(m[1] for m in dep_results))
+    # {(t, e):(r, u)}
+    products = {}
+    products.update(chain(*(m[1].iteritems() for m in dep_results)))
 
     dep_usings = (u for (t, e), (r, u) in topo_sort(dep_map))
     env_local_b = reduce(lambda e, u: e.derive(u), dep_usings, env_local_a)
 
-    using, products = self._using_and_products(env_local_b)
+    using, local_products = self._using_and_products(env_local_b)
    
     if self._transparent:
       dep_map[(self, env_up)] = (0, using)
     else:
       dep_map = { (self, env_up): (0, using) }
 
-    return (dep_map, list(chain(dep_products, products)))
+    products[(self, env_up)] = local_products
+
+    return (dep_map, products)
 
   def _derive_down(self, env_up):
     return env_up

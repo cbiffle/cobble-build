@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import cobble.loader
 import cobble.ninja_syntax
+import itertools
 import os.path
 import sys
 
@@ -84,7 +85,7 @@ for target in project.iterleaves():
   writer.comment('')
   writer.newline()
   topomap, products = target.evaluate(None)
-  for product in products:
+  for product in itertools.chain(*products.itervalues()):
     key = ' '.join(product['outputs'])
     if key in unique_products:
       if product != unique_products[key]:
