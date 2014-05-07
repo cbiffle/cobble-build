@@ -1,0 +1,28 @@
+Cobble Example Project
+======================
+
+To try Cobble out:
+
+ 1. Create an empty directory right next to this file, called `build`.
+
+ 2. `cd build`
+
+ 3. `../../wrapper.py init ..` -- this asks Cobble to initialize the current
+    directory as a build environment for the project located one level up,
+    at `..`.
+ 4. `../../wrapper.py build`
+
+Your `build` will now contain three things, at the top level:
+
+ 1. A `build.ninja` file containing the steps Cobble and Ninja took to build
+    the project.  Cobble will regenerate this file if it detects changes in
+    your project shape.
+
+ 2. A directory called `env`.  This contains context-specific builds of
+    parts of the project.
+
+ 3. A directory called `latest`.  This contains symlinks into `env` for all your
+    "leaf products" like binaries.
+
+The Unix tool `tree` can help you visualize the contents of the build directory,
+if you're interested.
