@@ -2,6 +2,8 @@
 the Ninja authors.
 """
 
+import collections
+import itertools
 import textwrap
 import re
 
@@ -12,15 +14,17 @@ def _escape_path(word):
     return word.replace('$ ','$$ ').replace(' ','$ ').replace(':', '$:')
 
 
-def _as_list(input):
-    """Allows punning of non-list types as lists.  Lists are passed through;
-    non-lists emerge as single-item lists, except None, which becomes the empty
-    list.
+def _as_iterable(input):
+    """Allows punning of singleton values as iterables. Iterables are passed
+    through, except strings, which are treated as values.   Other values emerge
+    as singleton iterables, except None, which emerges as empty.
     """
+    if isinstance(input, str):
+        return [input]
+    if isinstance(input, collections.Iterable):
+        return input
     if input is None:
         return []
-    if isinstance(input, list):
-        return input
     return [input]
 
 
@@ -49,13 +53,12 @@ class Writer(object):
             self.output.write('# ' + line + '\n')
 
     def variable(self, key, value, indent=0):
-        """Emits a variable, joining values with strings if required."""
+        """Emits a variable, joining values with spaces if required."""
         # TODO(cbiffle): neither key nor value are escaped?
-        if value is None:
-            return
-        if isinstance(value, list):
-            value = ' '.join(filter(None, value))  # Filter out empty strings.
-        self._line('%s = %s' % (key, value), indent)
+        value_str = ' '.join(itertools.ifilter(None, _as_iterable(value)))
+
+        if value_str:
+          self._line('%s = %s' % (key, value_str), indent)
 
     def pool(self, name, depth):
         """Emits a pool declaration."""
@@ -83,32 +86,38 @@ class Writer(object):
               variables=None):
         """Emits a build product.
 
-        Outputs, inputs, implicit, and order_only are typically lists, but each
-        can also be provided as a single string.
+        Outputs, inputs, implicit, and order_only are typically iterables, but
+        each can also be provided as a single string.
 
-        Variables can either be a dict or a list of key,value pairs.
+        Variables can either be a mapping or an iterable of key,value pairs.
         """
         # TODO(cbiffle): rule name not escaped?
-        out_outputs = list(map(_escape_path, _as_list(outputs)))
-        all_inputs = list(map(_escape_path, _as_list(inputs)))
+        out_outputs = itertools.imap(_escape_path, _as_iterable(outputs))
+        all_inputs = itertools.imap(_escape_path, _as_iterable(inputs))
 
         if implicit:
-            all_inputs.append('|')
-            all_inputs.extend(map(_escape_path, _as_list(implicit)))
+            all_inputs = itertools.chain(
+                all_inputs,
+                ['|'],
+                itertools.imap(_escape_path, _as_iterable(implicit)))
         if order_only:
-            all_inputs.append('||')
-            all_inputs.extend(map(_escape_path, _as_list(order_only)))
+            all_inputs = itertools.chain(
+                all_inputs,
+                ['||'],
+                itertools.imap(_escape_path, _as_iterable(order_only)))
 
-        self._line('build %s: %s' % (' '.join(out_outputs),
-                                     ' '.join([rule] + all_inputs)))
+        self._line('build %s: %s %s' % (' '.join(out_outputs),
+                                        rule,
+                                        ' '.join(all_inputs)))
 
-        if isinstance(variables, dict):
-            iterator = variables.iteritems()
+        if variables is None:
+          pass
+        elif isinstance(variables, collections.Mapping):
+            for key in variables:
+                self.variable(key, variables[key], indent=1)
         else:
-            iterator = iter(variables or [])
-
-        for key, val in iterator:
-            self.variable(key, val, indent=1)
+            for key, val in variables:
+                self.variable(key, val, indent=1)
 
     def include(self, path):
         """Emits an include statement for a path."""
@@ -123,7 +132,7 @@ class Writer(object):
     def default(self, paths):
         """Designates some paths as default."""
         # TODO(cbiffle): paths not escaped?
-        self._line('default %s' % ' '.join(_as_list(paths)))
+        self._line('default %s' % ' '.join(_as_iterable(paths)))
 
     def _line(self, text, indent=0):
         """Write 'text' word-wrapped at self.width characters."""
