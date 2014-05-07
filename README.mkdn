@@ -1,0 +1,7 @@
+Cobble: a simple build system for modular software.
+===================================================
+
+Cobble distills my ideas about how to build software -- specifically software
+written in C -- into a few hundred lines of Python.
+
+Cobble is currently a work in progress.
