@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 """Python module for generating .ninja files, derived from code provided by
 the Ninja authors.
 """
@@ -8,7 +6,33 @@ import textwrap
 import re
 
 def _escape_path(word):
+    """Used to escape paths; only escapes the characters that are significant
+    in a build/rule definition.  Interestingly, does *not* escape dollar signs.
+    """
     return word.replace('$ ','$$ ').replace(' ','$ ').replace(':', '$:')
+
+
+def _as_list(input):
+    """Allows punning of non-list types as lists.  Lists are passed through;
+    non-lists emerge as single-item lists, except None, which becomes the empty
+    list.
+    """
+    if input is None:
+        return []
+    if isinstance(input, list):
+        return input
+    return [input]
+
+
+def _count_dollars_before_index(s, i):
+    """Returns the number of '$' characters right in front of s[i]."""
+    dollar_count = 0
+    dollar_index = i - 1
+    while dollar_index > 0 and s[dollar_index] == '$':
+        dollar_count += 1
+        dollar_index -= 1
+    return dollar_count
+
 
 class Writer(object):
     def __init__(self, output, width=78):
@@ -16,13 +40,17 @@ class Writer(object):
         self.width = width
 
     def newline(self):
+        """Emits a blank line."""
         self.output.write('\n')
 
     def comment(self, text):
+        """Emits some commented text."""
         for line in textwrap.wrap(text, self.width - 2):
             self.output.write('# ' + line + '\n')
 
     def variable(self, key, value, indent=0):
+        """Emits a variable, joining values with strings if required."""
+        # TODO(cbiffle): neither key nor value are escaped?
         if value is None:
             return
         if isinstance(value, list):
@@ -30,41 +58,46 @@ class Writer(object):
         self._line('%s = %s' % (key, value), indent)
 
     def pool(self, name, depth):
+        """Emits a pool declaration."""
+        # TODO(cbiffle): name is not escaped?
         self._line('pool %s' % name)
         self.variable('depth', depth, indent=1)
 
     def rule(self, name, command, description=None, depfile=None,
              generator=False, pool=None, restat=False, rspfile=None,
              rspfile_content=None, deps=None):
+        """Emits a rule."""
+        # TODO(cbiffle): name is not escaped?
         self._line('rule %s' % name)
         self.variable('command', command, indent=1)
-        self._maybe_variable('description', description, indent=1)
-        self._maybe_variable('depfile', depfile, indent=1)
-        self._maybe_variable('pool', pool, indent=1)
-        self._maybe_variable('rspfile', rspfile, indent=1)
-        self._maybe_variable('rspfile_content', rspfile_content, indent=1)
-        self._maybe_variable('deps', deps, indent=1)
-
-        if generator:
-            self.variable('generator', '1', indent=1)
-        if restat:
-           self.variable('restat', '1', indent=1)
-
-    def _maybe_variable(self, key, value, indent=0):
-      if value:
-        self.variable(key, value, indent)
+        self.variable('description', description, indent=1)
+        self.variable('depfile', depfile, indent=1)
+        self.variable('pool', pool, indent=1)
+        self.variable('rspfile', rspfile, indent=1)
+        self.variable('rspfile_content', rspfile_content, indent=1)
+        self.variable('deps', deps, indent=1)
+        self.variable('generator', generator and '1', indent=1)
+        self.variable('restat', generator and '1', indent=1)
 
     def build(self, outputs, rule, inputs=None, implicit=None, order_only=None,
               variables=None):
-        out_outputs = list(map(_escape_path, self._as_list(outputs)))
-        all_inputs = list(map(_escape_path, self._as_list(inputs)))
+        """Emits a build product.
+
+        Outputs, inputs, implicit, and order_only are typically lists, but each
+        can also be provided as a single string.
+
+        Variables can either be a dict or a list of key,value pairs.
+        """
+        # TODO(cbiffle): rule name not escaped?
+        out_outputs = list(map(_escape_path, _as_list(outputs)))
+        all_inputs = list(map(_escape_path, _as_list(inputs)))
 
         if implicit:
             all_inputs.append('|')
-            all_inputs.extend(map(_escape_path, self._as_list(implicit)))
+            all_inputs.extend(map(_escape_path, _as_list(implicit)))
         if order_only:
             all_inputs.append('||')
-            all_inputs.extend(map(_escape_path, self._as_list(order_only)))
+            all_inputs.extend(map(_escape_path, _as_list(order_only)))
 
         self._line('build %s: %s' % (' '.join(out_outputs),
                                      ' '.join([rule] + all_inputs)))
@@ -78,22 +111,19 @@ class Writer(object):
             self.variable(key, val, indent=1)
 
     def include(self, path):
+        """Emits an include statement for a path."""
+        # TODO(cbiffle): path is not escaped ...?
         self._line('include %s' % path)
 
     def subninja(self, path):
+        """Emits a subninja statement."""
+        # TODO(cbiffle): path is not escaped ...?
         self._line('subninja %s' % path)
 
     def default(self, paths):
-        self._line('default %s' % ' '.join(self._as_list(paths)))
-
-    def _count_dollars_before_index(self, s, i):
-      """Returns the number of '$' characters right in front of s[i]."""
-      dollar_count = 0
-      dollar_index = i - 1
-      while dollar_index > 0 and s[dollar_index] == '$':
-        dollar_count += 1
-        dollar_index -= 1
-      return dollar_count
+        """Designates some paths as default."""
+        # TODO(cbiffle): paths not escaped?
+        self._line('default %s' % ' '.join(_as_list(paths)))
 
     def _line(self, text, indent=0):
         """Write 'text' word-wrapped at self.width characters."""
@@ -108,7 +138,7 @@ class Writer(object):
             while True:
               space = text.rfind(' ', 0, space)
               if space < 0 or \
-                 self._count_dollars_before_index(text, space) % 2 == 0:
+                 _count_dollars_before_index(text, space) % 2 == 0:
                 break
 
             if space < 0:
@@ -117,7 +147,7 @@ class Writer(object):
                 while True:
                   space = text.find(' ', space + 1)
                   if space < 0 or \
-                     self._count_dollars_before_index(text, space) % 2 == 0:
+                     _count_dollars_before_index(text, space) % 2 == 0:
                     break
             if space < 0:
                 # Give up on breaking.
@@ -130,13 +160,6 @@ class Writer(object):
             leading_space = '  ' * (indent+2)
 
         self.output.write(leading_space + text + '\n')
-
-    def _as_list(self, input):
-        if input is None:
-            return []
-        if isinstance(input, list):
-            return input
-        return [input]
 
 
 def escape(string):
