@@ -43,6 +43,8 @@ class Writer(object):
         self.output = output
         self.width = width
 
+        self._indent = 0
+
     def newline(self):
         """Emits a blank line."""
         self.output.write('\n')
@@ -52,19 +54,20 @@ class Writer(object):
         for line in textwrap.wrap(text, self.width - 2):
             self.output.write('# ' + line + '\n')
 
-    def variable(self, key, value, indent=0):
+    def variable(self, key, value):
         """Emits a variable, joining values with spaces if required."""
         # TODO(cbiffle): neither key nor value are escaped?
         value_str = ' '.join(itertools.ifilter(None, _as_iterable(value)))
 
         if value_str:
-          self._line('%s = %s' % (key, value_str), indent)
+          self._line('%s = %s' % (key, value_str))
 
     def pool(self, name, depth):
         """Emits a pool declaration."""
         # TODO(cbiffle): name is not escaped?
         self._line('pool %s' % name)
-        self.variable('depth', depth, indent=1)
+        with self._increase_indent():
+          self.variable('depth', depth)
 
     def rule(self, name, command, description=None, depfile=None,
              generator=False, pool=None, restat=False, rspfile=None,
@@ -72,15 +75,16 @@ class Writer(object):
         """Emits a rule."""
         # TODO(cbiffle): name is not escaped?
         self._line('rule %s' % name)
-        self.variable('command', command, indent=1)
-        self.variable('description', description, indent=1)
-        self.variable('depfile', depfile, indent=1)
-        self.variable('pool', pool, indent=1)
-        self.variable('rspfile', rspfile, indent=1)
-        self.variable('rspfile_content', rspfile_content, indent=1)
-        self.variable('deps', deps, indent=1)
-        self.variable('generator', generator and '1', indent=1)
-        self.variable('restat', generator and '1', indent=1)
+        with self._increase_indent():
+            self.variable('command', command)
+            self.variable('description', description)
+            self.variable('depfile', depfile)
+            self.variable('pool', pool)
+            self.variable('rspfile', rspfile)
+            self.variable('rspfile_content', rspfile_content)
+            self.variable('deps', deps)
+            self.variable('generator', generator and '1')
+            self.variable('restat', generator and '1')
 
     def build(self, outputs, rule, inputs=None, implicit=None, order_only=None,
               variables=None):
@@ -110,14 +114,15 @@ class Writer(object):
                                         rule,
                                         ' '.join(all_inputs)))
 
-        if variables is None:
-          pass
-        elif isinstance(variables, collections.Mapping):
-            for key in variables:
-                self.variable(key, variables[key], indent=1)
-        else:
-            for key, val in variables:
-                self.variable(key, val, indent=1)
+        with self._increase_indent():
+            if variables is None:
+              pass
+            elif isinstance(variables, collections.Mapping):
+                for key in variables:
+                    self.variable(key, variables[key])
+            else:
+                for key, val in variables:
+                    self.variable(key, val)
 
     def include(self, path):
         """Emits an include statement for a path."""
@@ -134,9 +139,17 @@ class Writer(object):
         # TODO(cbiffle): paths not escaped?
         self._line('default %s' % ' '.join(_as_iterable(paths)))
 
-    def _line(self, text, indent=0):
+    def _increase_indent(self):
+        class Indenter:
+            def __enter__(_self):
+                self._indent += 1
+            def __exit__(_self, *stuff):
+                self._indent -= 1
+        return Indenter()
+
+    def _line(self, text):
         """Write 'text' word-wrapped at self.width characters."""
-        leading_space = '  ' * indent
+        leading_space = '  ' * self._indent
         while len(leading_space) + len(text) > self.width:
             # The text is too wide; wrap if possible.
 
@@ -166,7 +179,7 @@ class Writer(object):
             text = text[space+1:]
 
             # Subsequent lines are continuations, so indent them.
-            leading_space = '  ' * (indent+2)
+            leading_space = '  ' * (self._indent+2)
 
         self.output.write(leading_space + text + '\n')
 
