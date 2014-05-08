@@ -6,7 +6,7 @@ from itertools import chain
 
 _compile_keys = frozenset(['__order_only__', 'c_depswitch'])
 _link_keys = frozenset(['__implicit__', 'cc', 'link_srcs', 'link_flags'])
-_archive_keys = frozenset(['ar', 'ranlib'])
+_archive_keys = frozenset(['ar'])
 _preprocess_keys = frozenset(['cpp', 'cpp_flags', 'c_depswitch'])
 
 
@@ -253,7 +253,7 @@ ninja_rules = {
     'description': 'LINK $out',
   },
   'archive_c_library': {
-    'command': '$ar rc $out $in && $ranlib $out',
+    'command': '$ar rcs $out $in',
     'description': 'AR $out',
   },
   'symlink_leaf': {
