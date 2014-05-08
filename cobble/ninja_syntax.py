@@ -84,7 +84,7 @@ class Writer(object):
             self.variable('rspfile_content', rspfile_content)
             self.variable('deps', deps)
             self.variable('generator', generator and '1')
-            self.variable('restat', generator and '1')
+            self.variable('restat', restat and '1')
 
     def build(self, outputs, rule, inputs=None, implicit=None, order_only=None,
               variables=None):
