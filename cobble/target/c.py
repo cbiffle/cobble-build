@@ -5,7 +5,7 @@ import os.path
 from itertools import chain
 
 _compile_keys = frozenset(['__order_only__', 'c_depswitch'])
-_link_keys = frozenset(['__implicit__', 'cxx', 'link_srcs', 'link_flags'])
+_link_keys = frozenset(['__implicit__', 'cc', 'link_srcs', 'link_flags'])
 _archive_keys = frozenset(['ar', 'ranlib'])
 _preprocess_keys = frozenset(['cpp', 'cpp_flags', 'c_depswitch'])
 
@@ -249,7 +249,7 @@ ninja_rules = {
     'deps': 'gcc',
   },
   'link_c_program': {
-    'command': '$cxx $link_flags -o $out $in $link_srcs',
+    'command': '$cc $link_flags -o $out $in $link_srcs',
     'description': 'LINK $out',
   },
   'archive_c_library': {
