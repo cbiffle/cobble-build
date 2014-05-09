@@ -36,6 +36,27 @@ def create_cobble_symlink(cobble_path):
   os.symlink(cobble_path, './cobble')
 
 
+def write_implicit_deps_file(project):
+  """This writes our regeneration dependencies in GCC/Make format.
+
+  This works around a limitation in Ninja: it applies slightly different
+  semantics to dependencies on header files produced by the C preprocessor.
+  There is no syntax available in build.ninja to reproduce these semantics.
+  But they have an important feature: if a file listed in this way disappears,
+  the build is not blocked.
+
+  In cases where the shape of a project changes (specifically, a BUILD file
+  goes away), this lets us safely rebuild without completely reinitializing.
+  """
+  with open('build.ninja.deps', 'w') as f:
+    f.write("build.ninja: \\\n")
+
+    for filename in project.iterfiles():
+      f.write("  %s \\\n" % filename)
+
+    f.write("\n")  # for final backslash
+
+
 def init_build_dir(args):
   # Argument validation
 
@@ -71,17 +92,19 @@ def init_build_dir(args):
     args.project,
   ])
 
+  write_implicit_deps_file(project)
+
   writer.comment('Automatic regeneration')
   writer.rule(
     name = 'generate_ninja',
     command = generate_command_line,
     description = '(cobbling something together)',
+    depfile = 'build.ninja.deps',
   )
 
   writer.build(
     outputs = [ 'build.ninja' ],
     rule = 'generate_ninja',
-    inputs = list(project.iterfiles()),
   )
 
   writer.newline()
