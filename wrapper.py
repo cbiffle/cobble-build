@@ -11,6 +11,31 @@ import subprocess
 import sys
 
 
+def find_script_path():
+  """Dereferences symlinks until it finds the script."""
+  script = __file__
+  while os.path.islink(script):
+    script = os.readlink(script)
+  return script
+
+
+def create_cobble_symlink(cobble_path):
+  """Creates a symlink called 'cobble' in the current (build) directory."""
+  if os.path.exists('./cobble'):
+    if os.path.islink('./cobble'):
+      # We'll assume it's ours to mess with...
+      if os.readlink('./cobble') != cobble_path:
+        os.remove('./cobble')
+      else:
+        # It's already okay!
+        return
+    else:
+      raise Exception('Cannot create ./cobble symlink: other file has that ' +
+                      'name.')
+
+  os.symlink(cobble_path, './cobble')
+
+
 def init_build_dir(args):
   # Argument validation
 
@@ -31,6 +56,8 @@ def init_build_dir(args):
 
   # Actual work
 
+  create_cobble_symlink(find_script_path())
+
   project_module_dir = os.path.join(args.project, 'site_cobble')
   if os.path.isdir(project_module_dir):
     sys.path += [ project_module_dir ]
@@ -40,9 +67,7 @@ def init_build_dir(args):
   writer = cobble.ninja_syntax.Writer(open('.build.ninja.tmp', 'w'))
 
   generate_command_line = ' '.join([
-    __file__,
-    'init',
-    '--reinit',
+    './cobble', 'init', '--reinit',
     args.project,
   ])
 
