@@ -48,13 +48,15 @@ def write_implicit_deps_file(project):
   In cases where the shape of a project changes (specifically, a BUILD file
   goes away), this lets us safely rebuild without completely reinitializing.
   """
-  with open('build.ninja.deps', 'w') as f:
+  with open('build.ninja.deps.tmp', 'w') as f:
     f.write("build.ninja: \\\n")
 
     for filename in project.iterfiles():
       f.write("  %s \\\n" % filename)
 
     f.write("\n")  # for final backslash
+
+  os.rename('build.ninja.deps.tmp', 'build.ninja.deps')
 
 
 def init_build_dir(args):
