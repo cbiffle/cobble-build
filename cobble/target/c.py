@@ -136,27 +136,32 @@ class Library(CCompTarget):
     objects = [self._compile_object(s, env_local) for s in sources]
     obj_files = list(chain(*[p['outputs'] for p in objects]))
 
-    out = self.package.outpath(env_local, 'lib' + self.name + '.a')
-    out_delta = [
-      cobble.env.subset(_archive_keys),
-      cobble.env.append('inputs', obj_files),
-    ]
-    library = cobble.product(env_local.derive(out_delta),
-      outputs = [ out ],
-      rule = 'archive_c_library',
-      inputs = obj_files,
-    )
+    if env_local.get('c_library_archive_products', True):
+      outs = [ self.package.outpath(env_local, 'lib' + self.name + '.a') ]
+      out_delta = [
+        cobble.env.subset(_archive_keys),
+        cobble.env.append('inputs', obj_files),
+      ]
+      library = [cobble.product(env_local.derive(out_delta),
+        outputs = outs,
+        rule = 'archive_c_library',
+        inputs = obj_files,
+      )]
 
-    if env_local.get('whole_archive', False):
-      link_srcs = [ '-Wl,-whole-archive', out, '-Wl,-no-whole-archive' ]
+      if env_local.get('whole_archive', False):
+        link_srcs = ['-Wl,-whole-archive'] + outs + ['-Wl,-no-whole-archive']
+      else:
+        link_srcs = outs
     else:
-      link_srcs = [ out ]
+      outs = obj_files
+      link_srcs = obj_files
+      library = []
 
     using = list(chain(self._using_delta, cobble.env.make_appending_delta(
-      __implicit__ = [ out ],
+      __implicit__ = outs,
       link_srcs = link_srcs,
     )))
-    products = objects + [ library ]
+    products = objects + library
     return (using, products)
 
   def extend_when(self, env_p, sources = [], deps = [], local = {}, using = {}):
