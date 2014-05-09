@@ -15,7 +15,7 @@ def find_script_path():
   """Dereferences symlinks until it finds the script."""
   script = __file__
   while os.path.islink(script):
-    script = os.readlink(script)
+    script = os.path.join(os.path.dirname(script), os.readlink(script))
   return script
 
 
