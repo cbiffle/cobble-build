@@ -1,8 +1,9 @@
+import cobble
 import collections
-import copy
 import cPickle
 import functools
 import hashlib
+import numbers
 
 
 def fingerprint_dict(d):
@@ -30,7 +31,9 @@ class Env(object):
   def __init__(self, contents, _copy_contents = True):
     """Creates a new Env by defensively copying the provided mapping."""
     if _copy_contents:
-      self._dict = copy.deepcopy(contents)
+      self._dict = {}
+      for k, v in contents.iteritems():
+        self._dict[k] = freeze(v)
     else:
       self._dict = contents
     self._digest = None
@@ -43,7 +46,7 @@ class Env(object):
 
   def derive(self, delta):
     """Apply a delta to this Env, producing a new Env."""
-    new_dict = copy.deepcopy(self._dict)
+    new_dict = dict(self._dict.iteritems())
     for change in delta:
       change(new_dict)
     return Env(new_dict, _copy_contents = False)
@@ -51,7 +54,7 @@ class Env(object):
   def subset(self, keys):
     """Derive a new Env containing the intersection between this Env's keys
     and the provided Iterable of key names."""
-    return Env({k : copy.deepcopy(self._dict[k])
+    return Env({k : self._dict[k]
                    for k in keys if k in self._dict},
                _copy_contents = False)
 
@@ -94,7 +97,7 @@ class Env(object):
 def interpolate(d, value):
   """More flexible version of Python's % operator for string-dict interpolation.
   """
-  if isinstance(value, str):
+  if isinstance(value, basestring):
     try:
       return value % d
     except KeyError as e:
@@ -106,6 +109,20 @@ def interpolate(d, value):
   else:
     return value
 
+
+def freeze(value):
+  if isinstance(value, basestring):
+    return value
+  elif isinstance(value, numbers.Number):
+    return value
+  elif isinstance(value, collections.Iterable):
+    return tuple(freeze(v) for v in value)
+  elif isinstance(value, cobble.Ident):
+    return value
+  else:
+    raise Exception("Invalid type in environment: %s" % type(value))
+
+
 def append(key, value):
   """Make a function that will append value to key in a dict, or create the
   key with the given value if none exists."""
@@ -113,10 +130,10 @@ def append(key, value):
     try:
       current = d[key]
     except KeyError:
-      d[key] = interpolate(d, value)
+      d[key] = freeze(interpolate(d, value))
       return
 
-    d[key] = current + interpolate(d, value)
+    d[key] = current + freeze(interpolate(d, value))
 
   return helper
 
@@ -128,10 +145,10 @@ def prepend(key, value):
     try:
       current = d[key]
     except KeyError:
-      d[key] = interpolate(d, value)
+      d[key] = freeze(interpolate(d, value))
       return
 
-    d[key] = interpolate(d, value) + current
+    d[key] = freeze(interpolate(d, value)) + current
 
   return helper
 
@@ -139,7 +156,7 @@ def override(key, value):
   """Make a function that will replace any value of key in a dict with
   value, creating if needed."""
   def helper(d):
-    d[key] = interpolate(d, value)
+    d[key] = freeze(interpolate(d, value))
   return helper
 
 def remove(key):
