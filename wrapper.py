@@ -59,6 +59,17 @@ def write_implicit_deps_file(project):
   os.rename('build.ninja.deps.tmp', 'build.ninja.deps')
 
 
+def product_path_sort_key(product_path):
+  if product_path.startswith('./env/'):
+    return ('env', product_path[46:], product_path[6:46])
+  else:
+    return (product_path,)
+
+
+def product_sort_key(product):
+  return tuple(product_path_sort_key(o) for o in product['outputs'])
+
+
 def init_build_dir(args):
   # Argument validation
 
@@ -123,14 +134,12 @@ def init_build_dir(args):
     writer.newline()
 
   unique_products = {}
+  # We can make multiple passes here because the results are memoized.
+  # First pass: check and collect unique products.
   for target in project.iterleaves():
-    writer.comment('')
-    writer.comment('Processing %s' % target.identifier)
-    writer.comment('')
-    writer.newline()
     topomap, products = target.evaluate(None)
     for product in itertools.chain(*products.itervalues()):
-      key = ' '.join(product['outputs'])
+      key = ' '.join(sorted(product['outputs']))
       if key in unique_products:
         if product != unique_products[key]:
           raise Exception("Duplicate products with non-matching rules!")
@@ -138,15 +147,21 @@ def init_build_dir(args):
 
       unique_products[key] = product
 
-      writer.build(**product)
-      writer.newline()
+  sorted_products = sorted(unique_products.itervalues(), key = product_sort_key)
+  for product in sorted_products:
+    writer.build(**product)
+    writer.newline()
 
+  # Second pass: generate phonies
+  for target in project.iterleaves():
+    topomap, products = target.evaluate(None)
     writer.build(
       outputs = [ str(target.identifier) ],
       rule = 'phony',
       implicit = [o for p in products.get((target, None), [])
                     for o in p['outputs']],
     )
+    writer.newline()
 
   os.rename('.build.ninja.tmp', 'build.ninja')  
 
