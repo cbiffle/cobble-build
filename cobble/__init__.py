@@ -181,6 +181,10 @@ class Package(object):
   def genroot(self):
     return self.genpath()
 
+  @property
+  def inroot(self):
+    return self.project.inpath(self.relpath)
+
   def itertargets(self):
     return self.targets.itervalues()
 

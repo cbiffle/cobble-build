@@ -33,6 +33,7 @@ class Loader(object):
     
     globals = {
       'GEN': package.genroot,
+      'PKG': package.inroot,
     }
     for m in self._installed_modules.itervalues():
       for name, fn in m.package_verbs.iteritems():
