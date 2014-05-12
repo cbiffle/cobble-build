@@ -87,58 +87,80 @@ def build(args):
 
   subprocess.call(cmd)
 
-parser = argparse.ArgumentParser()
 
-subparsers = parser.add_subparsers(title = 'commands')
+def make_argument_parser():
+  parser = argparse.ArgumentParser()
 
-init_parser = subparsers.add_parser('init',
-                                    help = 'Initialize a build directory')
-init_parser.set_defaults(go = init_build_dir)
-init_parser.add_argument('project',
-                         help = 'Directory at root of project with BUILD.conf')
+  subparsers = parser.add_subparsers(title = 'commands')
+  make_init_parser(subparsers)
+  make_build_parser(subparsers)
 
-init_parser.add_argument('--reinit',
-                         help = 'Allow overwriting build.ninja (default: no)',
-                         action = 'store_true')
-
-build_parser = subparsers.add_parser('build',
-                                     help = 'Build project')
-build_parser.add_argument('-j',
-                          help = 'run N jobs in parallel',
-                          type = int,
-                          metavar = 'N',
-                          dest = 'jobs')
-
-build_parser.add_argument('-l',
-                          help = "don't start new jobs if loadavg > N",
-                          type = float,
-                          metavar = 'N',
-                          dest = 'loadavg')
-
-build_parser.add_argument('-n',
-                          help = "dry run (don't run commands)",
-                          action = 'store_true',
-                          dest = 'dry_run')
-
-build_parser.add_argument('-v',
-                          help = "show all command lines while building",
-                          action = 'store_true',
-                          dest = 'show_commands')
-
-build_parser.add_argument('--explain',
-                          help = "explain why commands are being run",
-                          action = 'store_true')
-
-build_parser.add_argument('--stats',
-                          help = "at end, print ninja internal stats",
-                          action = 'store_true')
-
-build_parser.add_argument('targets',
-                          nargs = '*',
-                          help = 'Targets to build; if unspecified, build all.')
-
-build_parser.set_defaults(go = build)
+  return parser
 
 
-args = parser.parse_args()
-args.go(args)
+def make_init_parser(subparsers):
+  init_parser = subparsers.add_parser(
+      'init',
+      help = 'Initialize a build directory')
+  init_parser.add_argument(
+      'project',
+      help = 'Directory at root of project with BUILD.conf')
+
+  init_parser.add_argument(
+      '--reinit',
+      help = 'Allow overwriting build.ninja (default: no)',
+      action = 'store_true')
+  init_parser.set_defaults(go = init_build_dir)
+
+
+def make_build_parser(subparsers):
+  build_parser = subparsers.add_parser(
+      'build',
+      help = 'Build project')
+  build_parser.add_argument(
+      '-j',
+      help = 'run N jobs in parallel',
+      type = int,
+      metavar = 'N',
+      dest = 'jobs')
+
+  build_parser.add_argument(
+      '-l',
+      help = "don't start new jobs if loadavg > N",
+      type = float,
+      metavar = 'N',
+      dest = 'loadavg')
+
+  build_parser.add_argument(
+      '-n',
+      help = "dry run (don't run commands)",
+      action = 'store_true',
+      dest = 'dry_run')
+
+  build_parser.add_argument(
+      '-v',
+      help = "show all command lines while building",
+      action = 'store_true',
+      dest = 'show_commands')
+
+  build_parser.add_argument(
+      '--explain',
+      help = "explain why commands are being run",
+      action = 'store_true')
+
+  build_parser.add_argument(
+      '--stats',
+      help = "at end, print ninja internal stats",
+      action = 'store_true')
+
+  build_parser.add_argument(
+      'targets',
+      nargs = '*',
+      help = 'Targets to build; if unspecified, build all.')
+
+  build_parser.set_defaults(go = build)
+
+
+if __name__ == '__main__':
+  args = make_argument_parser().parse_args()
+  args.go(args)
