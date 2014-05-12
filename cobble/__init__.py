@@ -7,6 +7,7 @@ import cobble.env
 from itertools import chain
 
 
+@functools.total_ordering
 class Ident(object):
   """An identifier for a Target, which can also be punned as a Package
   identifier.
@@ -82,6 +83,14 @@ class Ident(object):
 
   def __repr__(self):
     return 'cobble.Ident("%s")' % str(self)
+
+  def __eq__(self, other):
+    return ((self.package_relpath, self.target_name) ==
+            (other.package_relpath, other.target_name))
+
+  def __lt__(self, other):
+    return ((self.package_relpath, self.target_name) <
+            (other.package_relpath, other.target_name))
 
 
 class Project(object):
