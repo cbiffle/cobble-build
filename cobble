@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import os.path
+import sys
+
+if __file__.endswith('wrapper.py'):
+  print('WARNING: wrapper.py is deprecated!  Please call cobble directly.\n' +
+        'Update your aliases and/or reinit your build directories to hide\n' +
+        'this message.  The compatibility symlink will be removed soon!',
+        file = sys.stderr)
+
+cobble_dist_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(cobble_dist_dir, 'src'))
+
+import cobble.script
+
+cobble.script.run(__file__)

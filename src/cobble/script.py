@@ -54,7 +54,8 @@ def init_build_dir(args):
 
   # Actual work
 
-  create_cobble_symlink(find_script_path(args.script_path))
+  script_path = find_script_path(args.script_path)
+  create_cobble_symlink(os.path.relpath(script_path, '.'))
 
   project_module_dir = os.path.join(args.project, 'site_cobble')
   if os.path.isdir(project_module_dir):
