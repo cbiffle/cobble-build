@@ -36,8 +36,9 @@ class Loader(object):
       'PKG': package.inroot,
     }
     for m in self._installed_modules.itervalues():
-      for name, fn in m.package_verbs.iteritems():
-        globals[name] = functools.partial(fn, self, package)
+      if hasattr(m, 'package_verbs'):
+        for name, fn in m.package_verbs.iteritems():
+          globals[name] = functools.partial(fn, self, package)
 
     with open(package.inpath('BUILD'), 'r') as f:
       exec(f, globals)
