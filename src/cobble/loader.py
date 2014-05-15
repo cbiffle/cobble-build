@@ -39,6 +39,9 @@ class Loader(object):
       if hasattr(m, 'package_verbs'):
         for name, fn in m.package_verbs.iteritems():
           globals[name] = functools.partial(fn, self, package)
+      if hasattr(m, 'global_functions'):
+        for name, fn in m.global_functions.iteritems():
+          globals[name] = fn
 
     with open(package.inpath('BUILD'), 'r') as f:
       exec(f, globals)
