@@ -279,6 +279,10 @@ class Target(object):
     env_local_b = reduce(lambda e, u: e.derive(u), dep_usings, env_local_a)
 
     using, local_products = self._using_and_products(env_local_b)
+
+    using = using + cobble.env.make_appending_delta(
+      __transitive_deps__ = [ self.identifier ],
+    )
    
     if self._transparent:
       dep_map[(self, env_up)] = (0, using)
