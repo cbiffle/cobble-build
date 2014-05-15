@@ -214,6 +214,7 @@ class Target(object):
     self._evaluations_by_env = {}
     self._transparent = True
     self.leaf = False
+    self.checks = []
 
     self.package.add_target(self)
 
@@ -278,6 +279,8 @@ class Target(object):
     dep_usings = (u for (t, e), (r, u) in topo_sort(dep_map))
     env_local_b = reduce(lambda e, u: e.derive(u), dep_usings, env_local_a)
 
+    self._check_local(env_local_b)
+
     using, local_products = self._using_and_products(env_local_b)
 
     using = using + cobble.env.make_appending_delta(
@@ -295,6 +298,9 @@ class Target(object):
 
   def _derive_down(self, env_up):
     return env_up
+
+  def _check_local(self, env_local):
+    for check in self.checks: check(self, env_local)
 
   def _using_and_products(self, env_local):
     """Should return a pair of (using_delta, build_products)"""

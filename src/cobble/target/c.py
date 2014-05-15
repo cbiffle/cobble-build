@@ -124,9 +124,11 @@ class Library(CCompTarget):
                deps = [],
                sources = [],
                local = {},
-               using = {}):
+               using = {},
+               checks = []):
     super(Library, self).__init__(loader, package, name, deps, sources, local)
     self._using_delta = cobble.env.make_appending_delta(**using)
+    self.checks += checks
 
   def _using_and_products(self, env_local):
     sources = env_local.get('sources', [])
