@@ -65,6 +65,8 @@ def init_build_dir(args):
 
   cobble.output.write_ninja_files(project)
 
+  return 0
+
 
 def build(args):
   cmd = [ 'ninja' ]
@@ -83,7 +85,7 @@ def build(args):
 
   cmd += args.targets
 
-  subprocess.call(cmd)
+  return subprocess.call(cmd)
 
 
 def make_argument_parser():
@@ -162,4 +164,4 @@ def make_build_parser(subparsers):
 def run(script_path):
   args = make_argument_parser().parse_args()
   args.script_path = script_path
-  args.go(args)
+  return args.go(args)

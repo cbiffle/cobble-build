@@ -16,4 +16,4 @@ sys.path.append(os.path.join(cobble_dist_dir, 'src'))
 
 import cobble.script
 
-cobble.script.run(__file__)
+sys.exit(cobble.script.run(__file__))
