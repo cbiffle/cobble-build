@@ -125,6 +125,15 @@ class Project(object):
         other_modules.add(module)
 
   def find_target(self, i):
+    """Looks up the target matching an identifier 'i'.
+
+    The identifier is normally an Ident, but as a special concession to certain
+    types of tool-manipulated build files, we also allow for and parse strings.
+    """
+
+    if isinstance(i, basestring):
+      i = Ident.parse(i)
+
     try:
       return self.packages[i.package_relpath].targets[i.target_name_or_default]
     except KeyError:
