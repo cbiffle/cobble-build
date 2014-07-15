@@ -221,7 +221,10 @@ class Preprocess(CTarget):
     }
 
     products = [ product, symlink ]
-    return ([], products)
+    using = cobble.env.make_appending_delta(
+      __implicit__ = [self.identifier],
+    )
+    return (using, products)
 
 
 package_verbs = {
