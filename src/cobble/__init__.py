@@ -341,7 +341,7 @@ def topo_merge(dicts):
 def topo_sort(mapping):
   def key(pair):
     (t, e), (r, u) = pair
-    return (r, t.identifier, e.digest, u)
+    return (r, t.identifier, e.digest if e else None, u)
 
   return sorted(mapping.iteritems(), key = key)
 
