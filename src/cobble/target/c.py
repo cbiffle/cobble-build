@@ -103,7 +103,7 @@ class Program(CCompTarget):
     symlink = {
       'outputs': [ symlink_path ],
       'rule': 'symlink_leaf',
-      'order_only': [ program_path ],
+      'implicit': [ program_path ],
       'variables': {
         'symlink_target': os.path.relpath(program_path,
                                           os.path.dirname(symlink_path)),
