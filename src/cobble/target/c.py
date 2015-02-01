@@ -4,10 +4,11 @@ import os.path
 
 from itertools import chain
 
-_compile_keys = frozenset(['__order_only__', 'c_depswitch'])
-_link_keys = frozenset(['__implicit__', 'cxx', 'link_srcs', 'link_flags'])
+_common_keys = frozenset(['__order_only__', '__implicit__'])
+_compile_keys = _common_keys | frozenset(['c_depswitch'])
+_link_keys = _common_keys | frozenset(['cxx', 'link_srcs', 'link_flags'])
 _archive_keys = frozenset(['ar'])
-_preprocess_keys = frozenset(['cpp', 'cpp_flags', 'c_depswitch'])
+_preprocess_keys = _common_keys | frozenset(['cpp', 'cpp_flags', 'c_depswitch'])
 
 
 class CTarget(cobble.Target):
