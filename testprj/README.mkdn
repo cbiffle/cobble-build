@@ -7,10 +7,12 @@ To try Cobble out:
 
  2. `cd build`
 
- 3. `../../wrapper.py init ..` -- this asks Cobble to initialize the current
+ 3. `../../cobble init ..` -- this asks Cobble to initialize the current
     directory as a build environment for the project located one level up,
-    at `..`.
- 4. `../../wrapper.py build`
+    at `..`.  It will also create a symlink to Cobble in the `build` directory,
+    so you can quit typing all those dots.
+
+ 4. `./cobble build`
 
 Your `build` will now contain three things, at the top level:
 
