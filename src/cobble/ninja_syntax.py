@@ -11,7 +11,7 @@ def _escape_path(word):
     """Used to escape paths; only escapes the characters that are significant
     in a build/rule definition.  Interestingly, does *not* escape dollar signs.
     """
-    return word.replace('$ ','$$ ').replace(' ','$ ').replace(':', '$:')
+    return str(word).replace('$ ','$$ ').replace(' ','$ ').replace(':', '$:')
 
 
 def _as_iterable(input):
