@@ -31,12 +31,14 @@ class CCompTarget(CTarget):
   def __init__(self, loader, package, name, deps, sources, local):
     super(CTarget, self).__init__(loader, package, name)
 
-    deps = [package.resolve(d) for d in deps]
-    loader.include_packages(deps)
+    # Pass interpolated targets through unmodified, but not to the loader.
+    loadable_deps = [package.resolve(d) for d in deps if '%' not in d]
+    interp_deps = [d for d in deps if '%' in d]
+    loader.include_packages(loadable_deps)
 
     self._local_delta = cobble.env.make_appending_delta(
       sources = sources,
-      deps = deps,
+      deps = list(chain(loadable_deps, interp_deps)),
     ) + cobble.env.make_appending_delta(**local)
 
   def _derive_local(self, env_up):

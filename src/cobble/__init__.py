@@ -275,8 +275,11 @@ class Target(object):
 
     # local A applies the changes needed to discover our dep keys.
     env_local_a = self._derive_local(env_down)
+    # Allow dep keys to be defined in terms of env_local_a.
+    env_deps = env_local_a.derive([env.override('deps',
+                                                env_local_a.get('deps', []))])
 
-    deps = [self.project.find_target(id) for id in env_local_a.get('deps', [])]
+    deps = [self.project.find_target(id) for id in env_deps.get('deps', [])]
     dep_results = [dep.evaluate(env_down) for dep in deps]
     # [({(t, e):(r,u)}, {(t, e):[p]}]
 
