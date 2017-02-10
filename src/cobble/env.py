@@ -1,6 +1,5 @@
 import cobble
 import collections
-import cPickle
 import functools
 import hashlib
 import numbers
@@ -13,8 +12,7 @@ def fingerprint_dict(d):
   uses an unspecified munging operation (currently cPickle) to produce a stream
   of bytes.  This stream of bytes is then SHA1-hashed.
   """
-  return hashlib.sha1(
-      cPickle.dumps(sorted(d.iteritems(), key = lambda p: p[0]))).hexdigest()
+  return hashlib.sha1(str(sorted(d.iteritems()))).hexdigest()
 
 
 class Env(object):
