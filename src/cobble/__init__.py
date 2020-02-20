@@ -309,19 +309,21 @@ class Target(object):
     return (dep_map, products)
 
   def _derive_down(self, env_up):
+    """Derives the down-environment passed to dependencies from the up-env."""
     return env_up
 
   def _check_local(self, env_local):
+    """Applies check predicates to an environment proposed as the local env."""
     for check in self.checks: check(self, env_local)
 
   def _using_and_products(self, env_local):
-    """Should return a pair of (using_delta, build_products)"""
+    """Derives the using-delta for dependents and the list of build products.
+
+    Should return a pair of (using_delta, build_products)"""
     return ([], [])
     
-  def _derive_using(self, env_local, env_dep):
-    return env_dep
-
   def _derive_local(self, env):
+    """Derives the local environment from the computed environment."""
     return env
 
   def _products(self, env):
