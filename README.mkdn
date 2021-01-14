@@ -43,6 +43,13 @@ Cobble is built on the shoulders of others:
  - Aspects of the design are influenced by [SCons](http://scons.org), [GYP](https://code.google.com/p/gyp/),
    and [GN](https://code.google.com/p/chromium/wiki/gn).
 
+## v1 and v2
+
+You're reading the readme for the second version of Cobble. Cobble v2 is
+_mostly_ compatible but there have been some changes to allow bugfixes and
+simplifications in the core. If you need the older version, have a look at the
+v1 branch.
+
 [Loon]: http://loon.com/
 [Ninja]: http://martine.github.io/ninja/
 [SCons]: http://scons.org
