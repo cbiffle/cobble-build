@@ -3,6 +3,7 @@
 import importlib
 import sys
 import traceback
+import toml
 
 import cobble.env
 
@@ -78,6 +79,7 @@ def load(root, build_dir):
             'define_key': _build_conf_define_key,
             'plugin_path': _build_conf_plugin_path,
 
+            'VARS': Vars.load(project.inpath('BUILD.vars')),
             'ROOT': project.root,
             'BUILD': project.build_dir,
         },
@@ -205,3 +207,50 @@ def _compile_and_exec(path, kind, globals):
                     kind = kind,
                     path = path) from exc_info[1]
 
+
+class Vars(dict):
+    """A thin wrapper around dict to allow convenient loading of a BUILD.vars
+    file and lookup of configuration variables."""
+
+    @classmethod
+    def load(cls, path):
+        """Read a BUILD.vars file provided by 'path' and return its content as
+        nested Vars objects. The variables in the dict can be passed to the
+        evaluation step of BUILD.conf to localize environments."""
+        try:
+            with open(path) as f:
+                return toml.load(f, Vars)
+        except FileNotFoundError:
+            pass
+        except:
+            exc_info = sys.exc_info()
+            limit = len(traceback.extract_tb(exc_info[2])) - 1
+            raise BuildError(
+                    exc_info = exc_info,
+                    limit = limit,
+                    kind = 'BUILD.vars file',
+                    path = path) from exc_info[1]
+        return cls()
+
+    def get(self, *keys, default=None):
+        """Traverse into the dict looking up the given sequence of keys.
+        Unless a default is provided, a KeyError is raised if the exact
+        sequence of keys is not found."""
+        if len(keys) == 0:
+            raise TypeError(
+                    'get expected at least 1 arguments, got %s' % len(keys))
+
+        value = self
+        for k in keys:
+            if isinstance(value, dict):
+                try:
+                    value = value.__getitem__(k)
+                except KeyError as e:
+                    if default:
+                        return default
+                    else:
+                        raise e
+            else:
+                raise KeyError(k)
+
+        return value

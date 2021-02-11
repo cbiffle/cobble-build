@@ -185,8 +185,9 @@ def build(args):
 
 # Find the directory housing this script.
 dist_dir = os.path.dirname(os.path.realpath(__file__))
-# Add the `src` subdir for imports.
+# Add the `src` and `vnd/toml` subdirs for imports.
 sys.path.append(os.path.join(dist_dir, 'src'))
+sys.path.append(os.path.join(dist_dir, 'vnd', 'toml'))
 
 # Now that we have the module path right, we can...
 import cobble.loader
