@@ -65,6 +65,9 @@ def load(root, build_dir):
     def _build_conf_plugin_path(*paths):
         sys.path += [project.inpath(p) for p in paths]
 
+    # Load BUILD.vars
+    build_vars = Vars.load(project.inpath('BUILD.vars'))
+
     # Read in BUILD.conf and eval it for its side effects
     _compile_and_exec(
         path = project.inpath('BUILD.conf'),
@@ -79,7 +82,7 @@ def load(root, build_dir):
             'define_key': _build_conf_define_key,
             'plugin_path': _build_conf_plugin_path,
 
-            'VARS': Vars.load(project.inpath('BUILD.vars')),
+            'VARS': build_vars,
             'ROOT': project.root,
             'BUILD': project.build_dir,
         },
@@ -107,6 +110,8 @@ def load(root, build_dir):
 
             # Easy access to the path from the build dir to the package
             'PKG': package.inpath(),
+            # Access to localized build variables
+            'VARS': build_vars,
             # Easy access to the path from the build dir to the project
             'ROOT': project.root,
             # Location of the build dir
