@@ -91,15 +91,15 @@ def c_binary(package, name, *,
             env = program_env,
             outputs = [program_path],
             rule = 'link_c_program',
-            symlink_as = package.linkpath(name),
         )
         program.expose(path = program_path, name = name)
+        program.symlink(target = program_path, source = package.linkpath(name))
 
         # TODO: this is really just a way of naming the most derived node in
         # the build graph we just emitted, so that our users can depend on just
         # it. This could be factored out.
         using = {
-            '__implicit__': [program.symlink_as],
+            '__implicit__': [package.linkpath(name)],
         }
 
         products = objects + [program]
