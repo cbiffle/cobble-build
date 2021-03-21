@@ -399,14 +399,18 @@ class Product(object):
                 "Duplicate exposed output name %r" % name
         self._exposed_outputs[name] = path
 
-    def symlink(self, *, target, source):
+    def symlink(self, *, target, source, order_only = []):
         all_outputs = frozenset(self.outputs) | frozenset(self.implicit_outputs)
         assert target in all_outputs, \
                 "Can't symlink path %r that is not in outputs or implicit: %r" \
                 % (target, all_outputs)
         assert source not in self._symlinks, \
                 "Duplicate symlink source %r" % source
-        self._symlinks[source] = target
+        for dep in order_only:
+            assert dep in self._symlinks, \
+                "Order only source %r not in symlink set: %r" \
+                % (dep, frozenset(self._symlinks.keys()))
+        self._symlinks[source] = (target, tuple(order_only))
 
     def find_output(self, name):
         """Locates the exposed output named 'name', or 'None' if no such
@@ -437,11 +441,11 @@ class Product(object):
 
         if len(self._symlinks) > 0:
             symlinks = []
-            for source, target in self._symlinks.items():
+            for source, (target, order_only) in self._symlinks.items():
                 symlinks.append({
                     'outputs': [source],
                     'rule': 'cobble_symlink_product',
-                    'order_only': self.outputs + self.implicit_outputs,
+                    'order_only': self.outputs + self.implicit_outputs + order_only,
                     'variables': {
                         'target': os.path.relpath(target,
                             os.path.dirname(source)),
