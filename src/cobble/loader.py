@@ -1,40 +1,39 @@
 """Project loader for reading BUILD and BUILD.conf files."""
 
 import importlib
+import os.path
 import sys
 import traceback
 import toml
 
 import cobble.env
 
-def load(root, build_dir):
-    """Loads a Project, given the paths to the project root and build output
-    directory."""
 
-    # Create a key registry initialized with keys defined internally to Cobble.
-    kr = cobble.env.KeyRegistry()
-    for k in cobble.target.KEYS: kr.define(k)
-
-    # Create working data structures.
-    project = cobble.project.Project(root, build_dir)
-    packages_to_visit = []
-    installed_modules = {}
-
+def load_project(
+        project,
+        build_vars,
+        kr,
+        projects,
+        packages_to_visit,
+        installed_modules):
     # Function that will be exposed to BUILD.conf files as 'seed()'
     def _build_conf_seed(*paths):
         nonlocal packages_to_visit
-        packages_to_visit += paths
+        packages_to_visit += [project.alias + p for p in paths]
 
     # Function that will be exposed to BUILD.conf files as 'install()'
     def _build_conf_install(module_name):
         nonlocal kr
+        nonlocal installed_modules
 
-        module = importlib.import_module(module_name)
-        if hasattr(module, 'KEYS'):
-            for k in module.KEYS:
-                kr.define(k)
+        if module_name not in installed_modules:
+            module = importlib.import_module(module_name)
+            if hasattr(module, 'KEYS'):
+                for k in module.KEYS:
 
-        installed_modules[module.__name__] = module
+                    kr.define(k)
+
+            installed_modules[module.__name__] = module
 
     # Function that will be exposed to BUILD.conf files as 'environment()'
     def _build_conf_environment(name, base = None, contents = {}):
@@ -63,10 +62,44 @@ def load(root, build_dir):
 
     # Function that will be exposed to BUILD.conf files as 'plugin_path()'
     def _build_conf_plugin_path(*paths):
-        sys.path += [project.inpath(p) for p in paths]
+        for p in [project.inpath(p) for p in paths]:
+            if p not in sys.path:
+                sys.path.append(p)
 
-    # Load BUILD.vars
-    build_vars = Vars.load(project.inpath('BUILD.vars'))
+    # Function that will be exposed to BUILD.conf files as 'subproject()'
+    def _build_conf_subproject(alias, path):
+        nonlocal projects
+
+        assert alias not in project.subprojects, \
+            "Sub project %r is already registered" % alias
+
+        sub_root = os.path.normpath(os.path.join(project.root, path))
+        if sub_root in projects:
+            subproject = projects[sub_root]
+            assert project.alias == alias, \
+                "Sub project at %r already registered with alias %r" % \
+                    (path, subproject.alias)
+        else:
+            subproject = cobble.project.Project(
+                sub_root,
+                project.build_dir,
+                alias)
+            projects[sub_root] = subproject
+            # Load the sub project. This will allow the remainder of the
+            # BUILD.conf of the current project to reference items from
+            # the sub project.
+            #
+            # This may result in a somewhat odd sequence of packages to
+            # visit in the next step, so we may want to reconsider this.
+            load_project(
+                subproject,
+                build_vars,
+                kr,
+                projects,
+                packages_to_visit,
+                installed_modules)
+
+        project.subprojects[alias] = subproject
 
     # Read in BUILD.conf and eval it for its side effects
     _compile_and_exec(
@@ -81,12 +114,48 @@ def load(root, build_dir):
             'environment': _build_conf_environment,
             'define_key': _build_conf_define_key,
             'plugin_path': _build_conf_plugin_path,
+            'subproject': _build_conf_subproject,
 
             'VARS': build_vars,
             'ROOT': project.root,
+            'ALIAS': project.alias,
             'BUILD': project.build_dir,
         },
     )
+
+def load(root, build_dir):
+    """Loads a Project, given the paths to the project root and build output
+    directory."""
+
+    # Create a key registry initialized with keys defined internally to Cobble.
+    kr = cobble.env.KeyRegistry()
+    for k in cobble.target.KEYS: kr.define(k)
+
+    # Create working data structures.
+    projects = {}
+    packages_to_visit = []
+    installed_modules = {}
+
+    root_project = cobble.project.Project(root, build_dir, '')
+    projects[root] = root_project
+
+    # Load BUILD.vars
+    build_vars = Vars.load(root_project.inpath('BUILD.vars'))
+
+    # Recursively read in BUILD.conf and eval it for its side effects
+    load_project(
+        root_project,
+        build_vars,
+        kr,
+        projects,
+        packages_to_visit,
+        installed_modules)
+
+    # Register all plugins' ninja rules. The project context is not needed for
+    # these, so simply add them all to the root project.
+    for mod in installed_modules.values():
+        if hasattr(mod, 'ninja_rules'):
+            root_project.add_ninja_rules(mod.ninja_rules)
 
     # Process the package worklist. We're also extending the worklist in this
     # algorithm, treating it like a stack (rather than a queue). This means the
@@ -96,12 +165,18 @@ def load(root, build_dir):
     while packages_to_visit:
         ident = packages_to_visit.pop()
 
+        # Determine if this package is part of a sub project. If it is perform
+        # all operations which follow in the context of that (sub)project.
+        project_alias, relpath = _get_relpath(ident)
+        project = _find_subproject(projects.values(), project_alias)
+        assert project, "No sub project found with alias %r" % project_alias
+
         # Check if we've done this one.
-        relpath = _get_relpath(ident)
         if relpath in project.packages:
             continue
 
         package = cobble.project.Package(project, relpath)
+
         # Prepare the global environment for eval-ing the package. We provide
         # a few variables by default:
         pkg_env = {
@@ -116,8 +191,6 @@ def load(root, build_dir):
             'ROOT': project.root,
             # Location of the build dir
             'BUILD': project.build_dir,
-
-            'define_key': _build_conf_define_key,
         }
         # The rest of the variables are provided by items registered in
         # plugins.
@@ -136,13 +209,7 @@ def load(root, build_dir):
             globals = pkg_env,
         )
 
-    # Register all plugins' ninja rules. We could probably do this earlier, but
-    # hey.
-    for mod in installed_modules.values():
-        if hasattr(mod, 'ninja_rules'):
-            project.add_ninja_rules(mod.ninja_rules)
-
-    return project
+    return root_project
 
 def _wrap_verb(package, verb, packages_to_visit):
     """Instruments a package-verb function 'verb' from 'package' with code to
@@ -166,8 +233,15 @@ def _wrap_verb(package, verb, packages_to_visit):
 def _get_relpath(ident):
     """Extracts the relative path from the project root to the directory
     containing the BUILD file defining a target named by an ident."""
-    assert ident.startswith('//'), "bogus ident got in: %r" % ident
-    return ident[2:].split(':')[0]
+    assert '//' in ident, "bogus ident got in: %r" % ident
+    alias, package_and_target = ident.split('//')
+    return (alias, package_and_target.split(':')[0])
+
+def _find_subproject(projects, alias):
+    for p in projects:
+        if p.alias == alias:
+            return p
+    return None
 
 class BuildError(Exception):
     """Exception raised if processing of a BUILD/BUILD.conf file fails."""

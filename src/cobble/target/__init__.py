@@ -85,9 +85,9 @@ class Target(object):
         rp = self.package.relpath
         if rp == '.':
             # Special case for targets defined at the project root
-            return '//:' + self._name
+            return self.package.project.alias + '//:' + self._name
         else:
-            return '//' + rp + ':' + self._name
+            return self.package.project.alias + '//' + rp + ':' + self._name
 
     @property
     def deps(self):

@@ -5,6 +5,20 @@ import cobble.ninja_syntax
 from itertools import chain
 from collections import defaultdict
 
+
+def _get_project_files(project):
+    """Recursively collect the file sets of all projects."""
+    def _get_subproject_files(p, subproject_files):
+        for subproject in p.subprojects.values():
+            _get_subproject_files(subproject, subproject_files)
+        if p.alias not in subproject_files:
+            subproject_files[p.alias] = p.files()
+        return subproject_files
+
+    return sorted([
+        f for f in
+        chain(*_get_subproject_files(project, {}).values())])
+
 def write_ninja_files(project,
         dump_environments = False):
     """Processes the build graph rooted at 'project' and produces Ninja files.
@@ -24,7 +38,7 @@ def write_ninja_files(project,
     writer.build(
         outputs = ['build.ninja'],
         rule = 'cobble_generate_ninja',
-        implicit = project.files(),
+        implicit = _get_project_files(project),
     )
 
     writer.newline()

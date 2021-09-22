@@ -6,15 +6,18 @@ class Project(object):
     """A Project tracks the overall build configuration, filesystem paths,
     registered plugins/keys, etc. and provides services that relate to that."""
 
-    def __init__(self, root, build_dir):
+    def __init__(self, root, build_dir, alias):
         """Creates a Project.
 
         root: path to root of project structure.
         build_dir: path to build directory.
+        alias: name/alias used for this project.
         """
         self.root = root
         self.build_dir = build_dir
+        self.alias = alias
 
+        self.subprojects = {}
         self.named_envs = {}
         self.packages = {}
         self.ninja_rules = {
@@ -39,11 +42,11 @@ class Project(object):
         stored in separate places. Thus, 'outpath' requires the environment to
         be provided.
         """
-        return os.path.join(self.build_dir, 'env', env.digest, *parts)
+        return os.path.join(self.build_dir, 'env', self.alias, env.digest, *parts)
 
     def linkpath(self, *parts):
         """Creates a path into the 'latest' symlinks in the build directory."""
-        return os.path.join(self.build_dir, 'latest', *parts)
+        return os.path.join(self.build_dir, 'latest', self.alias, *parts)
 
     def add_package(self, package):
         """Registers 'package' with the project."""
@@ -56,25 +59,32 @@ class Project(object):
         """Finds the 'Target' named by an 'ident'.
 
         'find_target' at the 'Project' level requires absolute identifiers,
-        e.g. '//foo/bar:target'.
+        e.g. '//foo/bar:target' or 'sub//foo/bar:target'.
         """
-        assert ident.startswith('//'), "bad identifier: %r" % ident
-        parts = ident[2:].split(':')
-        if len(parts) == 1:
+        assert '//' in ident, "bad identifier: %r" % ident
+        alias, package_and_target = ident.split('//')
+
+        if alias:
+            assert alias in self.subprojects, \
+                "Reference to unknown sub project: %r" % alias
+            return self.subprojects[alias].find_target('//' + package_and_target)
+
+        colons_in_remainder = package_and_target.count(':')
+        if colons_in_remainder == 0:
             # Target name not specified
-            pkg_path = parts[0]
+            pkg_path = package_and_target
             target_name = os.path.basename(pkg_path)
-        elif len(parts) == 2:
+        elif colons_in_remainder == 1:
             # Explicit target name
-            pkg_path = parts[0]
-            target_name = parts[1]
+            pkg_path, target_name = package_and_target.split(':')
         else:
             raise Exception('Too many colons in identifier: %r' % ident)
-       
+
         assert pkg_path in self.packages, \
                "Reference to unknown package: %r" % ident
         assert target_name in self.packages[pkg_path].targets, \
-                "Target %s not found in package %s" % (target_name, pkg_path)
+                "Target %s not found in package %s" % \
+                    (target_name, self.alias + '//' + pkg_path)
         return self.packages[pkg_path].targets[target_name]
 
     def define_environment(self, name, env):
@@ -145,15 +155,17 @@ class Package(object):
 
     def make_absolute(self, ident):
         """Makes an ident, which may be relative to this package, absolute."""
-        if ident.startswith('//'):
-            return ident
         if ident.startswith(':'):
-            return '//' + self.relpath + ident
+            return self.project.alias + '//' + self.relpath + ident
+        if ident.startswith('//'):
+            return self.project.alias + ident
+        if '//' in ident:
+            return ident
         raise Exception('Unexpected ident: %r' % ident)
 
     def find_target(self, ident):
         """Finds a target relative to this package. This enables local
         references using the ':foo' syntax."""
         if ident.startswith(':'):
-            return self.project.find_target('//' + self.relpath + ident)
+            return self.project.find_target(self.project.alias + '//' + self.relpath + ident)
         return self.project.find_target(ident)
