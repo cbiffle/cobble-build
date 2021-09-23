@@ -39,16 +39,18 @@ def load_project(
     def _build_conf_environment(name, base = None, contents = {}):
         assert name not in project.named_envs, \
                 "More than one environment named %r" % name
+
         if base:
-            assert base in project.named_envs, \
+            base_env = project.find_environment(base)
+            assert base_env, \
                 "Base environment %r does not exist (must appear before)" \
                 % base
-            base_env = project.named_envs[base]
         else:
             base_env = cobble.env.Env(kr, {})
 
-        env = base_env.derive(cobble.env.prepare_delta(contents))
-        project.named_envs[name] = env
+        project.define_environment(
+            name,
+            base_env.derive(cobble.env.prepare_delta(contents)))
 
     # Function that will be exposed to BUILD.conf files as 'define_key()'
     def _build_conf_define_key(name, *, type):

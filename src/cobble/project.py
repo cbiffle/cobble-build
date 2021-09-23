@@ -48,6 +48,25 @@ class Project(object):
         """Creates a path into the 'latest' symlinks in the build directory."""
         return os.path.join(self.build_dir, 'latest', self.alias, *parts)
 
+    def add_subproject(self, subproject):
+        """Registers a subproject 'project' with the project."""
+        assert subproject.alias not in self.subprojects, \
+            "Duplicate subproject %r" % subproject.alias
+        self.subprojects[subproject.alias] = subproject
+
+    def find_project(self, alias):
+        if alias == '' or alias == self.alias:
+            return self
+        else:
+            # Recursively ask each subproject if they know about this alias.
+            # This may return multiple results, but the loader should guarantee
+            # no two projects share the same alias.
+            possible_projects = [
+                p.find_project(alias) for p
+                in self.subprojects.values()
+            ]
+            return next(filter(None, possible_projects), None)
+
     def add_package(self, package):
         """Registers 'package' with the project."""
         assert package.relpath not in self.packages, \
@@ -61,13 +80,13 @@ class Project(object):
         'find_target' at the 'Project' level requires absolute identifiers,
         e.g. '//foo/bar:target' or 'sub//foo/bar:target'.
         """
-        assert '//' in ident, "bad identifier: %r" % ident
+        assert '//' in ident, "Expected absolute identifier: %r" % ident
         alias, package_and_target = ident.split('//')
 
         if alias:
-            assert alias in self.subprojects, \
-                "Reference to unknown sub project: %r" % alias
-            return self.subprojects[alias].find_target('//' + package_and_target)
+            project = self.find_project(alias)
+            assert project, "No project with alias %r" % alias
+            return project.find_target('//' + package_and_target)
 
         colons_in_remainder = package_and_target.count(':')
         if colons_in_remainder == 0:
@@ -96,6 +115,13 @@ class Project(object):
         assert name not in self.named_envs, \
             "more than one environment named %s" % name
         self.named_envs[name] = env
+
+    def find_environment(self, ident):
+        alias, name = ident.split('//') if '//' in ident else ('', ident)
+        project = self.find_project(alias)
+        assert project, "No project with alias %r" % alias
+        assert name in project.named_envs, "No environment named %r" % ident
+        return project.named_envs[name]
 
     def add_ninja_rules(self, rules):
         """Extends the set of Ninja rules used in the project.
@@ -167,5 +193,6 @@ class Package(object):
         """Finds a target relative to this package. This enables local
         references using the ':foo' syntax."""
         if ident.startswith(':'):
-            return self.project.find_target(self.project.alias + '//' + self.relpath + ident)
+            return self.project.find_target(
+                self.project.alias + '//' + self.relpath + ident)
         return self.project.find_target(ident)
