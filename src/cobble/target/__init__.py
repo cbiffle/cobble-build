@@ -275,7 +275,7 @@ class UsingContext(object):
         """
         result = []
         for s in sources:
-            if (s.startswith(':') or s.startswith('//')) and "#" in s:
+            if (s.startswith(':') or '//' in s) and "#" in s:
                 ident, output_name = s.split('#')
                 target = self._package.find_target(ident)
                 rank, target_env = self._rank_map[target]
