@@ -108,8 +108,7 @@ def load_project(
         path = project.inpath('BUILD.conf'),
         kind = 'BUILD.conf file',
         globals = {
-            # Block access to builtins. TODO: this might be too aggressive.
-            '__builtins__': {},
+            '__builtins__': _allowed_builtins,
 
             'seed': _build_conf_seed,
             'install': _build_conf_install,
@@ -182,8 +181,7 @@ def load(root, build_dir):
         # Prepare the global environment for eval-ing the package. We provide
         # a few variables by default:
         pkg_env = {
-            # Block access to builtins. TODO: this might be too aggressive.
-            '__builtins__': {},
+            '__builtins__': _allowed_builtins,
 
             # Easy access to the path from the build dir to the package
             'PKG': package.inpath(),
@@ -212,6 +210,47 @@ def load(root, build_dir):
         )
 
     return root_project
+
+_allowed_builtins = {
+    'abs': abs,
+    'all': all,
+    'any': any,
+    'ascii': ascii,
+    'bin': bin,
+    'bool': bool,
+    'chr': chr,
+    'dict': dict,
+    'divmod': divmod,
+    'enumerate': enumerate,
+    'filter': filter,
+    'float': float,
+    'format': format,
+    'frozenset': frozenset,
+    'hash': hash,
+    'hex': hex,
+    'int': int,
+    'iter': iter,
+    'len': len,
+    'list': list,
+    'map': map,
+    'max': max,
+    'min': min,
+    'next': next,
+    'oct': oct,
+    'ord': ord,
+    'pow': pow,
+    'print': print,
+    'range': range,
+    'repr': repr,
+    'reversed': reversed,
+    'round': round,
+    'set': set,
+    'sorted': sorted,
+    'str': str,
+    'sum': sum,
+    'tuple': tuple,
+    'zip': zip,
+}
 
 def _wrap_verb(package, verb, packages_to_visit):
     """Instruments a package-verb function 'verb' from 'package' with code to
