@@ -41,6 +41,14 @@ def make_argument_parser():
             action = 'store_true')
     init_parser.set_defaults(go = init_build_dir)
 
+    list_parser = subparsers.add_parser('list',
+            help = 'List available build targets')
+    list_parser.add_argument('-v',
+            help = "verbose output: print all targets, not just the symlinks",
+            action = 'store_true',
+            dest = 'verbose')
+    list_parser.set_defaults(go = list_targets)
+
     build_parser = subparsers.add_parser('build',
             help = 'Run the build, regenerating files if needed.')
     build_parser.add_argument('-j',
@@ -67,12 +75,11 @@ def make_argument_parser():
     build_parser.add_argument('--stats',
             help = "print Ninja internal stats at end of build",
             action = 'store_true')
-
     build_parser.add_argument('targets',
             nargs = '*',
             help = "Names of targets to build; if omitted, build all")
-
     build_parser.set_defaults(go = build)
+
     return parser
 
 
@@ -166,6 +173,80 @@ def init_build_dir(args):
             else:
                 print(' required by', dt.ident, '@', env.digest, file=sys.stderr)
         return 1
+
+    # Record the Project path as entry point for other commands.
+    if os.path.exists('./project_path'):
+        with open('./project_path') as project_path_file:
+            if project_path_file.read().strip() != project.root:
+                raise Exception("can't create project path file: file exists")
+
+    with open('./project_path', 'w') as project_path_file:
+        print(project.root, file=project_path_file)
+
+    return 0
+
+def list_targets(args):
+    """Implementation of the `list` subcommand."""
+
+    if not os.path.exists('./project_path'):
+        print('No project path file found.', file=sys.stderr)
+        print("Help: Initalize the build directory using 'init' command.",
+                file=sys.stderr)
+        return 1
+
+    project_path = None
+    with open('./project_path') as project_path_file:
+        project_path = project_path_file.read().strip()
+
+        if not os.path.exists(project_path):
+            print('Path %s found in ./project_path does not exist.' % project_path,
+                    file=sys.stderr)
+            return 1
+
+    try:
+        project = cobble.loader.load(project_path, '.')
+    except cobble.loader.BuildError as e:
+        ex_type, ex, tb = e.exc_info
+        print('Error evaluating', e.kind, os.path.relpath(e.path, '.'),
+                ':', ex,
+                file=sys.stderr)
+        print('Help: (Re)initialize build directory for a more detailed error.',
+                file=sys.stderr)
+
+    # The following is a somewhat crude method of gathering all concrete
+    # outputs, but it seems to work. We may need to beef this up with something
+    # that resembles what is done in output.py.
+    products = set([])
+    for target in project.concrete_targets():
+        _, product_map = target.evaluate(None)
+        for product in product_map.values():
+            products.update(product)
+
+    symlinks = []
+    outputs = []
+    for product in products:
+        symlinks.extend([
+            # Normalize the paths, primarily to strip the leading ./
+            (os.path.normpath(link), os.path.normpath(source))
+            for (link, source) in product.symlinks()])
+
+        if args.verbose:
+            outputs.extend(
+                map(os.path.normpath,
+                    product.exposed_outputs().values()))
+
+    if args.verbose:
+        outputs.sort()
+        for output in outputs:
+            print(output)
+
+    symlinks.sort()
+    for symlink in symlinks:
+        if args.verbose:
+            print("%s -> %s" % symlink)
+        else:
+            link, _ = symlink
+            print(link)
 
     return 0
 

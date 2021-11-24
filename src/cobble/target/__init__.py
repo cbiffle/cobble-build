@@ -422,6 +422,10 @@ class Product(object):
         # defensive copy :-(
         return dict(self._exposed_outputs)
 
+    def symlinks(self):
+        """Returns a list of (source, target) tuples to exposed outputs."""
+        return [(link, source) for link, (source, _) in self._symlinks.items()]
+
     def ninja_dicts(self):
         """Produces one or more Ninja build rules in dict format, where each
         dict key corresponds to one parameter in the Ninja build rule
