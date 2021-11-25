@@ -5,7 +5,8 @@ orchestrates actions within the library.
 """
 
 import argparse
-import os.path
+import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -79,6 +80,13 @@ def make_argument_parser():
             nargs = '*',
             help = "Names of targets to build; if omitted, build all")
     build_parser.set_defaults(go = build)
+
+    clean_parser = subparsers.add_parser('clean',
+            help = 'Clean up build artifacts')
+    clean_parser.add_argument('--squeaky',
+            help = "remove all project files, leaving the build dir squeaky clean",
+            action = 'store_true')
+    clean_parser.set_defaults(go = clean)
 
     return parser
 
@@ -263,6 +271,20 @@ def build(args):
     cmd += args.targets
     return subprocess.call(cmd)
 
+_outputs_dirs = ['latest', 'env']
+_project_files = ['.ninja_deps', '.ninja_log', 'build.ninja', 'project_path']
+
+def clean(args):
+    for path in _outputs_dirs:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+
+    if args.squeaky:
+        for path in _project_files:
+            if os.path.exists(path):
+                os.remove(path)
+
+    return 0
 
 # Find the directory housing this script.
 dist_dir = os.path.dirname(os.path.realpath(__file__))
