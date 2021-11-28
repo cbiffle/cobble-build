@@ -42,11 +42,11 @@ class Project(object):
         stored in separate places. Thus, 'outpath' requires the environment to
         be provided.
         """
-        return os.path.join(self.build_dir, 'env', self.alias, env.digest, *parts)
+        return os.path.join(self.build_dir, self.alias, 'env', env.digest, *parts)
 
     def linkpath(self, *parts):
         """Creates a path into the 'latest' symlinks in the build directory."""
-        return os.path.join(self.build_dir, 'latest', self.alias, *parts)
+        return os.path.join(self.build_dir, self.alias, 'latest', *parts)
 
     def add_subproject(self, subproject):
         """Registers a subproject 'project' with the project."""
@@ -144,6 +144,9 @@ class Project(object):
 
     def targets(self):
         """Returns an iterator over all Targets in the project."""
+        for subproject in self.subprojects.values():
+            for t in subproject.targets():
+                yield t
         for p in self.packages.values():
             for t in p.targets.values():
                 yield t

@@ -423,7 +423,7 @@ class Product(object):
         return dict(self._exposed_outputs)
 
     def symlinks(self):
-        """Returns a list of (source, target) tuples to exposed outputs."""
+        """Returns a list of (link, source) tuples to exposed symlinks to outputs."""
         return [(link, source) for link, (source, _) in self._symlinks.items()]
 
     def ninja_dicts(self):
