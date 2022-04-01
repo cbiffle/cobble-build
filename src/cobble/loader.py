@@ -5,13 +5,16 @@ import os.path
 import sys
 import traceback
 import toml
+import subprocess
 
 import cobble.env
+from cobble.git_version import GitVersioner, GitVersionerConfig
 
 
 def load_project(
         project,
         build_vars,
+        git_version_kv,
         kr,
         projects,
         packages_to_visit,
@@ -30,7 +33,6 @@ def load_project(
             module = importlib.import_module(module_name)
             if hasattr(module, 'KEYS'):
                 for k in module.KEYS:
-
                     kr.define(k)
 
             installed_modules[module.__name__] = module
@@ -46,7 +48,7 @@ def load_project(
                 "Base environment %r does not exist (must appear before)" \
                 % base
         else:
-            base_env = cobble.env.Env(kr, {})
+            base_env = cobble.env.Env(kr, git_version_kv, _fresh = True)
 
         project.define_environment(
             name,
@@ -96,6 +98,7 @@ def load_project(
             load_project(
                 subproject,
                 build_vars,
+                git_version_kv,
                 kr,
                 projects,
                 packages_to_visit,
@@ -143,10 +146,34 @@ def load(root, build_dir):
     # Load BUILD.vars
     build_vars = Vars.load(root_project.inpath('BUILD.vars'))
 
+    # Load Git version (if applicable)
+    year_factor = int(build_vars.get('git_version', 'year_factor', default = 1000))
+    stop_debounce = int(build_vars.get('git_version', 'stop_debounce', default = 48))
+    repo_name_default = os.path.basename(os.path.abspath(root_project.root))
+
+    git_versioner_config = GitVersionerConfig(
+        cmd = build_vars.get('git_version', 'bin', default = 'git'),
+        base_branch = \
+            build_vars.get('git_version', 'base_branch', default = 'main'),
+        repo_path = root_project.root,
+        year_factor = year_factor,
+        stop_debounce = stop_debounce,
+        name = build_vars.get('git_version', 'name', default = repo_name_default),
+        rev = build_vars.get('git_version', 'rev', default = 'HEAD'),
+    )
+    git_versioner = GitVersioner.from_config(git_versioner_config)
+
+    try:
+        git_version_kv = cobble.git_version.key_values(git_versioner)
+        for k in cobble.git_version.KEYS: kr.define(k)
+    except subprocess.CalledProcessError:
+        git_version_kv = {}
+
     # Recursively read in BUILD.conf and eval it for its side effects
     load_project(
         root_project,
         build_vars,
+        git_version_kv,
         kr,
         projects,
         packages_to_visit,
@@ -326,7 +353,6 @@ def _compile_and_exec(path, kind, globals):
                     limit = limit,
                     kind = kind,
                     path = path) from exc_info[1]
-
 
 class Vars(dict):
     """A thin wrapper around dict to allow convenient loading of a BUILD.vars
