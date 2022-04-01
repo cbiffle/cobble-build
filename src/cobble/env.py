@@ -87,6 +87,22 @@ class EnvKey:
         """Gets the default value for this key, or `None`."""
         return self._default
 
+def immutable_string_key(name, default = None, readout = None, help = None):
+    """Makes an EnvKey with a given 'name' that will accept a single string but
+    once added to the environment does not allow the value to change.
+    """
+    def from_literal(lit):
+        assert isinstance(lit, str)
+        return lit
+    return EnvKey(
+        name,
+        from_literal = from_literal,
+        combine = None,
+        default = default,
+        readout = readout,
+        help = help,
+    )
+
 def overrideable_string_key(name, default = None, readout = None,
         help = None):
     """Makes an EnvKey with a given 'name' that will accept a single string and
