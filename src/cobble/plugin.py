@@ -46,7 +46,21 @@ def target_def(fn):
             "Module %s contains multiple verbs called %s" % (fn.__module__, fn.__name__)
     mod.package_verbs[fn.__name__] = wrapper
 
-    return wrapper 
+    return wrapper
+
+def global_fn(fn):
+    """Takes a function and registers it as a global function available to
+    packages.
+    """
+
+    mod = sys.modules[fn.__module__]
+    if not hasattr(mod, 'global_functions'):
+        mod.global_functions = {}
+    assert fn.__name__ not in mod.global_functions, \
+            "Module %s contains multiple functions called %s" % (fn.__module__, fn.__name__)
+    mod.global_functions[fn.__name__] = fn
+
+    return fn
 
 class Delta:
     """Marker type for attributing parameters that should be prepared as deltas
@@ -54,4 +68,4 @@ class Delta:
     pass
 
 # Provide a targeted subset of this module to plugins using `import *`.
-__all__ = ["target_def", "Delta"]
+__all__ = ["target_def", "global_fn", "Delta"]

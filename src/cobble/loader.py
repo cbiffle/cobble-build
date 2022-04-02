@@ -182,7 +182,6 @@ def load(root, build_dir):
         # a few variables by default:
         pkg_env = {
             '__builtins__': _allowed_builtins,
-
             # Easy access to the path from the build dir to the package
             'PKG': package.inpath(),
             # Access to localized build variables
@@ -200,7 +199,7 @@ def load(root, build_dir):
                     pkg_env[name] = _wrap_verb(package, fn, packages_to_visit)
             if hasattr(mod, 'global_functions'):
                 for name, fn in mod.global_functions.items():
-                    pkg_env[name] = fn
+                    pkg_env[name] = _copy_fn(package, fn, pkg_env)
 
         # And now, the evaluation!
         _compile_and_exec(
@@ -226,12 +225,14 @@ _allowed_builtins = {
     'float': float,
     'format': format,
     'frozenset': frozenset,
+    'globals': globals,
     'hash': hash,
     'hex': hex,
     'int': int,
     'iter': iter,
     'len': len,
     'list': list,
+    'locals': locals,
     'map': map,
     'max': max,
     'min': min,
@@ -270,6 +271,32 @@ def _wrap_verb(package, verb, packages_to_visit):
         packages_to_visit += tgt.deps
 
     return verb_wrapper
+
+def _copy_fn(package, fn, globals):
+    """Copies the given function 'fn' and binds it to the given 'globals',
+    allowing the copy to run within this new context.
+    """
+    # Note that this is definitely a hack and if the function references symbols
+    # not present in the given globals the resulting exception will not be
+    # particularly helpful.
+
+    assert globals, "no globals available for function copy"
+
+    import copy
+    import types
+    import functools
+
+    # Please avert your eyes, runtime hackery is about to commence.
+    global_fn = types.FunctionType(
+        fn.__code__,
+        globals,
+        name=fn.__name__,
+        argdefs=fn.__defaults__,
+        closure=fn.__closure__)
+    global_fn = functools.update_wrapper(global_fn, fn)
+    global_fn.__kwdefaults__ = copy.copy(fn.__kwdefaults__)
+
+    return global_fn
 
 def _get_relpath(ident):
     """Extracts the relative path from the project root to the directory
