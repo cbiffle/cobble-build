@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import traceback
+import re
 
 def _compat_add_subparser(parser, title, dest):
     """Python made an incompatible change to how subparsers work between 3.6
@@ -81,6 +82,26 @@ def make_argument_parser():
             help = "Names of targets to build; if omitted, build all")
     build_parser.set_defaults(go = build)
 
+    run_parser = subparsers.add_parser('run',
+            help = 'Run concrete targets matching the given ident query.')
+    run_parser.add_argument('-j',
+            help = 'run N build jobs in parallel',
+            type = int,
+            metavar = 'N',
+            dest = 'jobs')
+    run_parser.add_argument('-l',
+            help = "don't start new build jobs if loadavg > N",
+            type = float,
+            metavar = 'N',
+            dest = 'loadavg')
+    run_parser.add_argument('-v',
+            help = "verbose output: print command lines while building and running",
+            action = 'store_true',
+            dest = 'verbose')
+    run_parser.add_argument('query',
+            help = "Query of products to build and run")
+    run_parser.set_defaults(go = run)
+
     clean_parser = subparsers.add_parser('clean',
             help = 'Clean up build artifacts')
     clean_parser.add_argument('--squeaky',
@@ -90,6 +111,47 @@ def make_argument_parser():
 
     return parser
 
+def _print_build_error(e):
+    ex_type, ex, tb = e.exc_info
+    print('Error evaluating', e.kind, os.path.relpath(e.path, '.'),
+            ':', ex,
+            file = sys.stderr)
+    print('Build directory cannot be initialized', file=sys.stderr)
+    print(file=sys.stderr)
+    traceback.print_exception(ex_type, ex, tb, limit = -e.limit)
+
+    if ex_type is ImportError:
+        print('Help: Python `import` is not available in this context.',
+                file=sys.stderr)
+        if e.kind.find('BUILD.conf') >= 0:
+            print('Help: Use `install` to install plugins.', file=sys.stderr)
+        else:
+            print('Help: Plugins must be registered in BUILD.conf.',
+                    file=sys.stderr)
+
+    if ex_type is NameError:
+        print('Help: perhaps you are missing a plugin?', file=sys.stderr)
+
+def _print_evaluation_error(e):
+    tgt, env = e.targets[0]
+    if env is None:
+        print('Target evaluation failed in', tgt.ident, file=sys.stderr)
+    else:
+        print('Target evaluation failed in', tgt.ident, '@', env.digest,
+                file=sys.stderr)
+    print('--- message ---', file = sys.stderr)
+    print(*e.cause.args, file=sys.stderr)
+    print('--- outer environment ---', file=sys.stderr)
+    if env is not None:
+        for k in env: print(k, '=', env[k], file=sys.stderr)
+    else:
+        print(env, file=sys.stderr)
+    print('--- dependency chain ---', file=sys.stderr)
+    for dt, de in e.targets[1:]:
+        if de is None:
+            print(' required by', dt.ident, file=sys.stderr)
+        else:
+            print(' required by', dt.ident, '@', env.digest, file=sys.stderr)
 
 def init_build_dir(args):
     """Implementation of the `init` subcommand."""
@@ -137,25 +199,7 @@ def init_build_dir(args):
     try:
         project = cobble.loader.load(args.project, '.')
     except cobble.loader.BuildError as e:
-        ex_type, ex, tb = e.exc_info
-        print('Error evaluating', e.kind, os.path.relpath(e.path, '.'),
-                ':', ex,
-                file = sys.stderr)
-        print('Build directory cannot be initialized', file=sys.stderr)
-        print(file=sys.stderr)
-        traceback.print_exception(ex_type, ex, tb, limit = -e.limit)
-
-        if ex_type is ImportError:
-            print('Help: Python `import` is not available in this context.',
-                    file=sys.stderr)
-            if e.kind.find('BUILD.conf') >= 0:
-                print('Help: Use `install` to install plugins.', file=sys.stderr)
-            else:
-                print('Help: Plugins must be registered in BUILD.conf.',
-                        file=sys.stderr)
-
-        if ex_type is NameError:
-            print('Help: perhaps you are missing a plugin?', file=sys.stderr)
+        _print_build_error(e)
         return 1
 
     # ...and blow it out.
@@ -163,25 +207,7 @@ def init_build_dir(args):
         cobble.output.write_ninja_files(project,
                 dump_environments = args.dump_environments)
     except cobble.target.EvaluationError as e:
-        tgt, env = e.targets[0]
-        if env is None:
-            print('Target evaluation failed in', tgt.ident, file=sys.stderr)
-        else:
-            print('Target evaluation failed in', tgt.ident, '@', env.digest,
-                    file=sys.stderr)
-        print('--- message ---', file = sys.stderr)
-        print(*e.cause.args, file=sys.stderr)
-        print('--- outer environment ---', file=sys.stderr)
-        if env is not None:
-            for k in env: print(k, '=', env[k], file=sys.stderr)
-        else:
-            print(env, file=sys.stderr)
-        print('--- dependency chain ---', file=sys.stderr)
-        for dt, de in e.targets[1:]:
-            if de is None:
-                print(' required by', dt.ident, file=sys.stderr)
-            else:
-                print(' required by', dt.ident, '@', env.digest, file=sys.stderr)
+        _print_evaluation_error(e)
         return 1
 
     # Record the Project path as entry point for other commands.
@@ -195,14 +221,12 @@ def init_build_dir(args):
 
     return 0
 
-def list_targets(args):
-    """Implementation of the `list` subcommand."""
-
+def _load_project():
     if not os.path.exists('./project_path'):
         print('No project path file found.', file=sys.stderr)
         print("Help: Initalize the build directory using 'init' command.",
                 file=sys.stderr)
-        return 1
+        return None
 
     project_path = None
     with open('./project_path') as project_path_file:
@@ -211,26 +235,32 @@ def list_targets(args):
         if not os.path.exists(project_path):
             print('Path %s found in ./project_path does not exist.' % project_path,
                     file=sys.stderr)
-            return 1
+            return None
 
     try:
-        project = cobble.loader.load(project_path, '.')
+        return cobble.loader.load(project_path, '.')
     except cobble.loader.BuildError as e:
-        ex_type, ex, tb = e.exc_info
-        print('Error evaluating', e.kind, os.path.relpath(e.path, '.'),
-                ':', ex,
-                file=sys.stderr)
-        print('Help: (Re)initialize build directory for a more detailed error.',
-                file=sys.stderr)
+        _print_build_error(e)
+
+def list_targets(args):
+    """Implementation of the `list` subcommand."""
+    project = _load_project()
+
+    if project is None:
+        return 1
 
     # The following is a somewhat crude method of gathering all concrete
     # outputs, but it seems to work. We may need to beef this up with something
     # that resembles what is done in output.py.
     products = set([])
-    for target in project.concrete_targets():
-        _, product_map = target.evaluate(None)
-        for product in product_map.values():
-            products.update(product)
+    try:
+        for target in project.concrete_targets():
+            _, product_map = target.evaluate(None)
+            for product in product_map.values():
+                products.update(product)
+    except cobble.target.EvaluationError as e:
+        _print_evaluation_error(e)
+        return 1
 
     symlinks = []
     outputs = []
@@ -259,6 +289,62 @@ def list_targets(args):
             print(link)
 
     return 0
+
+def run(args):
+    project = _load_project()
+
+    if project is None:
+        return 1
+
+    # Collect a dict containing (ident#output_name, output_path) pairs. This set
+    # can then be filtered to find the targets and outputs requested.
+    #
+    # The following is a somewhat crude method of gathering all concrete
+    # outputs, but it seems to work. We may need to beef this up with something
+    # that resembles what is done in output.py.
+    outputs = dict()
+    try:
+        for target in project.concrete_targets():
+            _, product_map = target.evaluate(None)
+            for products in product_map.values():
+                for product in products:
+                    for output_name, path in product.exposed_outputs().items():
+                        ident = '{}#{}'.format(target.ident, output_name)
+                        assert ident not in outputs
+                        outputs[ident] = os.path.normpath(path)
+    except cobble.target.EvaluationError as e:
+        _print_evaluation_error(e)
+        return 1
+
+    query = re.compile(args.query)
+    results = dict(filter(lambda i: query.fullmatch(i[0]), outputs.items()))
+
+    if args.verbose:
+        for ident, path in sorted(results.items()):
+            print(f"{ident} -> {path}")
+
+    # Build the matched outputs
+    if len(results) > 0:
+        build_cmd = ['ninja']
+        if args.jobs: cmd += ['-j', str(args.jobs)]
+        if args.loadavg: cmd += ['-l', str(args.loadavg)]
+        if args.verbose: build_cmd.append('-v')
+        build_cmd += results.values()
+        try:
+            subprocess.check_call(build_cmd)
+        except subprocess.CalledProcessError:
+            return 1
+
+        # Run the resulting ouputs in a shell.
+        try:
+            for output in sorted(results.values()):
+                print("Running", output)
+                subprocess.check_call([output], shell = True)
+        except subprocess.CalledProcessError:
+            return 1
+
+    return 0
+
 
 def build(args):
     """Implementation of the `build` subcommand."""
