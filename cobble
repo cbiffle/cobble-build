@@ -172,8 +172,10 @@ def init_build_dir(args):
         print('--- message ---', file = sys.stderr)
         print(*e.cause.args, file=sys.stderr)
         print('--- outer environment ---', file=sys.stderr)
-        for k in env:
-            print(k, '=', env[k], file=sys.stderr)
+        if env is not None:
+            for k in env: print(k, '=', env[k], file=sys.stderr)
+        else:
+            print(env, file=sys.stderr)
         print('--- dependency chain ---', file=sys.stderr)
         for dt, de in e.targets[1:]:
             if de is None:
