@@ -98,8 +98,19 @@ def make_argument_parser():
             help = "verbose output: print command lines while building and running",
             action = 'store_true',
             dest = 'verbose')
+    run_parser.add_argument('-c',
+            help = "Interpret remaining arguments as command",
+            action = 'store_true',
+            dest = 'args_as_cmd')
+    run_parser.add_argument('-s',
+            help = "If -c given, pass all results as arguments to a single invocation of the command",
+            action = 'store_true',
+            dest = 'single_invoke')
     run_parser.add_argument('query',
             help = "Query of products to build and run")
+    run_parser.add_argument('args',
+            nargs = argparse.REMAINDER,
+            help = 'Additional arguments passed to the output on invocation')
     run_parser.set_defaults(go = run)
 
     clean_parser = subparsers.add_parser('clean',
@@ -319,6 +330,7 @@ def run(args):
     query = re.compile(args.query)
     results = dict(filter(lambda i: query.fullmatch(i[0]), outputs.items()))
 
+    print(f"{len(results)} query result(s)")
     if args.verbose:
         for ident, path in sorted(results.items()):
             print(f"{ident} -> {path}")
@@ -335,11 +347,44 @@ def run(args):
         except subprocess.CalledProcessError:
             return 1
 
-        # Run the resulting ouputs in a shell.
+        def run_in_shell(cmd):
+            cmd_str = ' '.join(cmd)
+            if args.verbose:
+                print("Running", cmd_str)
+            subprocess.check_call(cmd_str, shell = True)
+
         try:
-            for output in sorted(results.values()):
-                print("Running", output)
-                subprocess.check_call([output], shell = True)
+            outputs = sorted(results.values())
+
+            if args.args_as_cmd:
+                # Treat the remaining arguments as the command and pass the
+                # outputs as the argument instead.
+                cmd = args.args
+                substitute_out_variable = ('$OUT' in cmd)
+
+                if args.single_invoke:
+                    # Pass all outputs in a single command invocation,
+                    # subsituting any $OUT strings with the output.
+                    if substitute_out_variable:
+                        outputs_str = ' '.join(outputs)
+                        run_in_shell(map(
+                            lambda a: outputs_str if a == '$OUT' else a,
+                            cmd))
+                    else:
+                        run_in_shell(cmd + outputs)
+                else:
+                    # Invoke the given command for each output, substituting
+                    # any $OUT strings with the output.
+                    for output in outputs:
+                        if substitute_out_variable:
+                            run_in_shell(map(
+                                lambda a: output if a == '$OUT' else a,
+                                cmd))
+                        else:
+                            run_in_shell(cmd + [output])
+            else:
+                for output in outputs:
+                    run_in_shell([output] + args.args)
         except subprocess.CalledProcessError:
             return 1
 
