@@ -43,7 +43,8 @@ def target_def(fn):
     if not hasattr(mod, 'package_verbs'):
         mod.package_verbs = {}
     assert fn.__name__ not in mod.package_verbs, \
-            "Module %s contains multiple verbs called %s" % (fn.__module__, fn.__name__)
+            "Module %s contains multiple verbs called %s" % \
+                (fn.__module__, fn.__name__)
     mod.package_verbs[fn.__name__] = wrapper
 
     return wrapper
@@ -57,8 +58,25 @@ def global_fn(fn):
     if not hasattr(mod, 'global_functions'):
         mod.global_functions = {}
     assert fn.__name__ not in mod.global_functions, \
-            "Module %s contains multiple functions called %s" % (fn.__module__, fn.__name__)
+            "Module %s contains multiple functions called %s" % \
+                (fn.__module__, fn.__name__)
     mod.global_functions[fn.__name__] = fn
+
+    return fn
+
+def cmd(fn):
+    """Takes a parser with embedded command handler and registers it to be
+    available to the Cobble script.
+    """
+
+    mod = sys.modules[fn.__module__]
+
+    if not hasattr(mod, 'commands'):
+        mod.commands = {}
+    assert fn.__name__ not in mod.commands, \
+            "Module %s contains multiple commands called %s" % \
+                (fn.__module__, fn.__name__)
+    mod.commands[fn.__name__] = fn
 
     return fn
 
@@ -68,4 +86,4 @@ class Delta:
     pass
 
 # Provide a targeted subset of this module to plugins using `import *`.
-__all__ = ["target_def", "global_fn", "Delta"]
+__all__ = ["target_def", "global_fn", "cmd", "Delta"]

@@ -185,6 +185,12 @@ def load(root, build_dir):
         if hasattr(mod, 'ninja_rules'):
             root_project.add_ninja_rules(mod.ninja_rules)
 
+    # Collect parser generator functions for plugin provided commands.
+    plugin_cmd_parser_generators = []
+    for mod in installed_modules.values():
+        if hasattr(mod, 'commands'):
+            plugin_cmd_parser_generators.extend(getattr(mod, 'commands').values())
+
     # Process the package worklist. We're also extending the worklist in this
     # algorithm, treating it like a stack (rather than a queue). This means the
     # order of package processing is a little hard to predict. Because packages
@@ -235,7 +241,31 @@ def load(root, build_dir):
             globals = pkg_env,
         )
 
-    return root_project
+    return (root_project, plugin_cmd_parser_generators)
+
+def print_build_error(e):
+    """Prints the information captured by a BuildError if loading the Project
+    fails.
+    """
+    ex_type, ex, tb = e.exc_info
+    print('Error evaluating %s %s:' % (e.kind, os.path.relpath(e.path, '.')),
+            ex,
+            file = sys.stderr)
+    print('Project cannot be initialized', file=sys.stderr)
+    print(file=sys.stderr)
+    traceback.print_exception(ex_type, ex, tb, limit = -e.limit)
+
+    if ex_type is ImportError:
+        print('Help: Python `import` is not available in this context.',
+                file=sys.stderr)
+        if e.kind.find('BUILD.conf') >= 0:
+            print('Help: Use `install` to install plugins.', file=sys.stderr)
+        else:
+            print('Help: Plugins must be registered in BUILD.conf.',
+                    file=sys.stderr)
+
+    if ex_type is NameError:
+        print('Help: perhaps you are missing a plugin?', file=sys.stderr)
 
 _allowed_builtins = {
     'abs': abs,

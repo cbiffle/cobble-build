@@ -5,6 +5,7 @@ orchestrates actions within the library.
 """
 
 import argparse
+import itertools
 import os
 import shutil
 import subprocess
@@ -24,50 +25,49 @@ def _compat_add_subparser(parser, title, dest):
     else:
         return parser.add_subparsers(title = title, dest = dest)
 
-def make_argument_parser():
+def make_argument_parser(plugin_command_parser_generators):
     """Defines the grammar for command-line arguments."""
 
     parser = argparse.ArgumentParser()
-
     subparsers = _compat_add_subparser(parser, title = 'command', dest = 'command')
 
     init_parser = subparsers.add_parser('init',
-            help = 'Initialize a build directory')
+            help = 'initialize a build directory')
     init_parser.add_argument('project',
-            help = 'Path to project root (containing BUILD.conf)')
+            help = 'path to project root (containing BUILD.conf)')
     init_parser.add_argument('--reinit',
-            help = 'Allow overwriting build.ninja (default: no)',
+            help = 'allow overwriting build.ninja (default: no)',
             action = 'store_true')
     init_parser.add_argument('--dump-environments',
-            help = 'Record contents of environments in Ninja file (default: no)',
+            help = 'record contents of environments in Ninja file (default: no)',
             action = 'store_true')
     init_parser.set_defaults(go = init_build_dir)
 
     list_parser = subparsers.add_parser('list',
-            help = 'List available build targets')
-    list_parser.add_argument('-v',
+            help = 'list available build targets')
+    list_parser.add_argument('-v', '--verbose',
             help = "verbose output: print all targets, not just the symlinks",
             action = 'store_true',
             dest = 'verbose')
     list_parser.set_defaults(go = list_targets)
 
     build_parser = subparsers.add_parser('build',
-            help = 'Run the build, regenerating files if needed.')
-    build_parser.add_argument('-j',
+            help = 'run the build, regenerating files if needed')
+    build_parser.add_argument('-j', '--jobs',
             help = 'run N jobs in parallel',
             type = int,
             metavar = 'N',
             dest = 'jobs')
-    build_parser.add_argument('-l',
+    build_parser.add_argument('-l', '--loadavg',
             help = "don't start new jobs if loadavg > N",
             type = float,
             metavar = 'N',
             dest = 'loadavg')
-    build_parser.add_argument('-n',
+    build_parser.add_argument('-n', '--dry-run',
             help = "dry run (don't run commands)",
             action = 'store_true',
             dest = 'dry_run')
-    build_parser.add_argument('-v',
+    build_parser.add_argument('-v', '--verbose',
             help = "verbose output: print command lines while building",
             action = 'store_true',
             dest = 'verbose')
@@ -79,92 +79,67 @@ def make_argument_parser():
             action = 'store_true')
     build_parser.add_argument('targets',
             nargs = '*',
-            help = "Names of targets to build; if omitted, build all")
+            help = "names of targets to build; if omitted, build all")
     build_parser.set_defaults(go = build)
 
     run_parser = subparsers.add_parser('run',
-            help = 'Run concrete targets matching the given ident query.')
-    run_parser.add_argument('-j',
+            help = 'build and run concrete targets')
+    run_parser.add_argument('-j', '--jobs',
             help = 'run N build jobs in parallel',
             type = int,
             metavar = 'N',
             dest = 'jobs')
-    run_parser.add_argument('-l',
+    run_parser.add_argument('-l', '--loadavg',
             help = "don't start new build jobs if loadavg > N",
             type = float,
             metavar = 'N',
             dest = 'loadavg')
-    run_parser.add_argument('-v',
+    run_parser.add_argument('-v', '--verbose',
             help = "verbose output: print command lines while building and running",
             action = 'store_true',
             dest = 'verbose')
-    run_parser.add_argument('-c',
-            help = "Interpret remaining arguments as command",
+    run_parser.add_argument('-n', '--dry-run',
+            help = "dry run (don't run commands)",
+            action = 'store_true',
+            dest = 'dry_run')
+    run_parser.add_argument('-c', '--as-command',
+            help = "interpret optional run arguments as command",
             action = 'store_true',
             dest = 'args_as_cmd')
-    run_parser.add_argument('-s',
-            help = "If -c given, pass all results as arguments to a single invocation of the command",
+    run_parser.add_argument('-s', '--single',
+            help = "if -c given, pass all build results as arguments to a single invocation of the command",
             action = 'store_true',
             dest = 'single_invoke')
-    run_parser.add_argument('query',
-            help = "Query of products to build and run")
-    run_parser.add_argument('args',
-            nargs = argparse.REMAINDER,
-            help = 'Additional arguments passed to the output on invocation')
+    run_parser.add_argument('targets_and_args',
+            nargs = argparse.PARSER,
+            help = "list of targets and run arguments separated by the '--' psuedo-argument")
     run_parser.set_defaults(go = run)
 
     clean_parser = subparsers.add_parser('clean',
-            help = 'Clean up build artifacts')
+            help = 'clean up build artifacts')
+    clean_parser.add_argument('-v', '--verbose',
+            help = "verbose output: print what is about to be cleaned",
+            action = 'store_true',
+            dest = 'verbose')
+    clean_parser.add_argument('-n', '--dry-run',
+            help = "dry run (don't actually remove files)",
+            action = 'store_true',
+            dest = 'dry_run')
     clean_parser.add_argument('--squeaky',
             help = "remove all project files, leaving the build dir squeaky clean",
             action = 'store_true')
+    clean_parser.add_argument('projects',
+            nargs = '*',
+            help = 'list of (sub)projects to clean')
     clean_parser.set_defaults(go = clean)
+
+    # Add parsers provided by plugins.
+    for add_plugin_cmd_parser in plugin_command_parser_generators:
+        add_plugin_cmd_parser(subparsers)
 
     return parser
 
-def _print_build_error(e):
-    ex_type, ex, tb = e.exc_info
-    print('Error evaluating', e.kind, os.path.relpath(e.path, '.'),
-            ':', ex,
-            file = sys.stderr)
-    print('Build directory cannot be initialized', file=sys.stderr)
-    print(file=sys.stderr)
-    traceback.print_exception(ex_type, ex, tb, limit = -e.limit)
-
-    if ex_type is ImportError:
-        print('Help: Python `import` is not available in this context.',
-                file=sys.stderr)
-        if e.kind.find('BUILD.conf') >= 0:
-            print('Help: Use `install` to install plugins.', file=sys.stderr)
-        else:
-            print('Help: Plugins must be registered in BUILD.conf.',
-                    file=sys.stderr)
-
-    if ex_type is NameError:
-        print('Help: perhaps you are missing a plugin?', file=sys.stderr)
-
-def _print_evaluation_error(e):
-    tgt, env = e.targets[0]
-    if env is None:
-        print('Target evaluation failed in', tgt.ident, file=sys.stderr)
-    else:
-        print('Target evaluation failed in', tgt.ident, '@', env.digest,
-                file=sys.stderr)
-    print('--- message ---', file = sys.stderr)
-    print(*e.cause.args, file=sys.stderr)
-    print('--- outer environment ---', file=sys.stderr)
-    if env is not None:
-        for k in env: print(k, '=', env[k], file=sys.stderr)
-    else:
-        print(env, file=sys.stderr)
-    print('--- dependency chain ---', file=sys.stderr)
-    for dt, de in e.targets[1:]:
-        if de is None:
-            print(' required by', dt.ident, file=sys.stderr)
-        else:
-            print(' required by', dt.ident, '@', env.digest, file=sys.stderr)
-
-def init_build_dir(args):
+def init_build_dir(_, args):
     """Implementation of the `init` subcommand."""
 
     if os.path.samefile(args.project, '.'):
@@ -208,9 +183,9 @@ def init_build_dir(args):
 
     # Build the graph...
     try:
-        project = cobble.loader.load(args.project, '.')
+        project, _ = cobble.loader.load(args.project, '.')
     except cobble.loader.BuildError as e:
-        _print_build_error(e)
+        cobble.loader.print_build_error(e)
         return 1
 
     # ...and blow it out.
@@ -218,47 +193,13 @@ def init_build_dir(args):
         cobble.output.write_ninja_files(project,
                 dump_environments = args.dump_environments)
     except cobble.target.EvaluationError as e:
-        _print_evaluation_error(e)
+        cobble.target.print_evaluation_error(e)
         return 1
-
-    # Record the Project path as entry point for other commands.
-    if os.path.exists('./project_path'):
-        with open('./project_path') as project_path_file:
-            if project_path_file.read().strip() != project.root:
-                raise Exception("can't create project path file: file exists")
-
-    with open('./project_path', 'w') as project_path_file:
-        print(project.root, file=project_path_file)
 
     return 0
 
-def _load_project():
-    if not os.path.exists('./project_path'):
-        print('No project path file found.', file=sys.stderr)
-        print("Help: Initalize the build directory using 'init' command.",
-                file=sys.stderr)
-        return None
-
-    project_path = None
-    with open('./project_path') as project_path_file:
-        project_path = project_path_file.read().strip()
-
-        if not os.path.exists(project_path):
-            print('Path %s found in ./project_path does not exist.' % project_path,
-                    file=sys.stderr)
-            return None
-
-    try:
-        return cobble.loader.load(project_path, '.')
-    except cobble.loader.BuildError as e:
-        _print_build_error(e)
-
-def list_targets(args):
+def list_targets(project, args):
     """Implementation of the `list` subcommand."""
-    project = _load_project()
-
-    if project is None:
-        return 1
 
     # The following is a somewhat crude method of gathering all concrete
     # outputs, but it seems to work. We may need to beef this up with something
@@ -270,7 +211,7 @@ def list_targets(args):
             for product in product_map.values():
                 products.update(product)
     except cobble.target.EvaluationError as e:
-        _print_evaluation_error(e)
+        cobble.target.print_evaluation_error(e)
         return 1
 
     symlinks = []
@@ -301,123 +242,196 @@ def list_targets(args):
 
     return 0
 
-def run(args):
-    project = _load_project()
-
-    if project is None:
-        return 1
-
-    # Collect a dict containing (ident#output_name, output_path) pairs. This set
-    # can then be filtered to find the targets and outputs requested.
-    #
-    # The following is a somewhat crude method of gathering all concrete
-    # outputs, but it seems to work. We may need to beef this up with something
-    # that resembles what is done in output.py.
-    outputs = dict()
+def build(project, args):
+    """Implementation of the `build` subcommand."""
     try:
-        for target in project.concrete_targets():
-            _, product_map = target.evaluate(None)
-            for products in product_map.values():
-                for product in products:
-                    for output_name, path in product.exposed_outputs().items():
-                        ident = '{}#{}'.format(target.ident, output_name)
-                        assert ident not in outputs
-                        outputs[ident] = os.path.normpath(path)
+        cobble.cmd.build_targets_or_query_results(project, args.targets, args)
+        return 0
     except cobble.target.EvaluationError as e:
-        _print_evaluation_error(e)
+        cobble.target.print_evaluation_error(e)
+        return 1
+    except subprocess.CalledProcessError:
         return 1
 
-    query = re.compile(args.query)
-    results = dict(filter(lambda i: query.fullmatch(i[0]), outputs.items()))
+def run(project, args):
+    """Implementation of the `run` subcommand."""
 
-    print(f"{len(results)} query result(s)")
-    if args.verbose:
-        for ident, path in sorted(results.items()):
-            print(f"{ident} -> {path}")
+    # args.targets_and_args is a combined list of positinal arguments, separated
+    # by the '--' pseudo-argument. Split these into two separate lists so they
+    # can be used appropriately.
+    targets_and_args = [
+        list(y)
+        for x, y
+        in itertools.groupby(
+                args.targets_and_args,
+                lambda z: z == '--') if not x
+    ]
+    targets = targets_and_args[0]
+    run_args = list(itertools.chain(*targets_and_args[1:]))
 
-    # Build the matched outputs
-    if len(results) > 0:
-        build_cmd = ['ninja']
-        if args.jobs: cmd += ['-j', str(args.jobs)]
-        if args.loadavg: cmd += ['-l', str(args.loadavg)]
-        if args.verbose: build_cmd.append('-v')
-        build_cmd += results.values()
-        try:
-            subprocess.check_call(build_cmd)
-        except subprocess.CalledProcessError:
-            return 1
+    try:
+        outputs = cobble.cmd.build_targets_or_query_results(
+            project,
+            targets,
+            args)
+    except cobble.target.EvaluationError as e:
+        cobble.target.print_evaluation_error(e)
+        return 1
+    except subprocess.CalledProcessError:
+        return 1
 
-        def run_in_shell(cmd):
-            cmd_str = ' '.join(cmd)
-            if args.verbose:
-                print("Running", cmd_str)
+    def run_in_shell(cmd, dry_run=False):
+        cmd_str = ' '.join(cmd)
+        if args.verbose:
+            print("Running", cmd_str)
+        if not dry_run:
             subprocess.check_call(cmd_str, shell = True)
 
-        try:
-            outputs = sorted(results.values())
+    def substitute_out(s, sub):
+        return sub if s == '$OUT' else s
 
-            if args.args_as_cmd:
-                # Treat the remaining arguments as the command and pass the
-                # outputs as the argument instead.
-                cmd = args.args
-                substitute_out_variable = ('$OUT' in cmd)
+    try:
+        if args.args_as_cmd:
+            # Treat the remaining arguments as the command and pass the
+            # outputs as the argument instead.
+            cmd = run_args
+            substitute_out_variable = ('$OUT' in cmd)
 
-                if args.single_invoke:
-                    # Pass all outputs in a single command invocation,
-                    # subsituting any $OUT strings with the output.
-                    if substitute_out_variable:
-                        outputs_str = ' '.join(outputs)
-                        run_in_shell(map(
-                            lambda a: outputs_str if a == '$OUT' else a,
-                            cmd))
-                    else:
-                        run_in_shell(cmd + outputs)
+            if args.single_invoke:
+                # Pass all outputs in a single command invocation,
+                # subsituting any $OUT strings with the output.
+                if substitute_out_variable:
+                    outputs_str = ' '.join(outputs)
+                    run_in_shell(
+                        map(substitute_out, cmd),
+                        dry_run=args.dry_run)
                 else:
-                    # Invoke the given command for each output, substituting
-                    # any $OUT strings with the output.
-                    for output in outputs:
-                        if substitute_out_variable:
-                            run_in_shell(map(
-                                lambda a: output if a == '$OUT' else a,
-                                cmd))
-                        else:
-                            run_in_shell(cmd + [output])
+                    run_in_shell(
+                        cmd + outputs,
+                        dry_run=args.dry_run)
             else:
+                # Invoke the given command for each output, substituting
+                # any $OUT strings with the output.
                 for output in outputs:
-                    run_in_shell([output] + args.args)
-        except subprocess.CalledProcessError:
-            return 1
+                    if substitute_out_variable:
+                        run_in_shell(
+                            map(substitute_out, cmd),
+                            dry_run=args.dry_run)
+                    else:
+                        run_in_shell(
+                            cmd + [output],
+                            dry_run=args.dry_run)
+        else:
+            for output in outputs:
+                run_in_shell(
+                    [output] + run_args,
+                    dry_run=args.dry_run)
+    except subprocess.CalledProcessError:
+        return 1
 
     return 0
-
-
-def build(args):
-    """Implementation of the `build` subcommand."""
-
-    cmd = ['ninja']
-    if args.jobs: cmd += ['-j', str(args.jobs)]
-    if args.loadavg: cmd += ['-l', str(args.loadavg)]
-    if args.dry_run: cmd += ['-n']
-    if args.verbose: cmd += ['-v']
-    if args.explain: cmd += ['-d', 'explain']
-    if args.stats: cmd += ['-d', 'stats']
-    cmd += args.targets
-    return subprocess.call(cmd)
 
 _outputs_dirs = ['latest', 'env']
 _project_files = ['.ninja_deps', '.ninja_log', 'build.ninja', 'project_path']
 
-def clean(args):
-    for path in _outputs_dirs:
-        if os.path.isdir(path):
+def clean(_, args):
+    """Implementation of the `clean` subcommand."""
+
+    def rmtree(path):
+        nonlocal args
+
+        if args.verbose:
+            print(f"Cleaning {path}")
+        if not args.dry_run:
             shutil.rmtree(path)
+
+    if len(args.projects) > 0:
+        # Clean the specifically requested projects.
+        for project in args.projects:
+            base = ('.' if project == 'root' else project)
+
+            for d in _outputs_dirs:
+                path = os.path.normpath(os.path.join(base, d))
+
+                if os.path.isdir(path):
+                    rmtree(path)
+    else:
+        # Attempt to clean everything that looks like a project output dir.
+        for child in os.listdir('.'):
+            if os.path.isdir(child):
+                if child in _outputs_dirs:
+                    rmtree(child)
+                else:
+                    # See if this dir belongs to a subproject and contains
+                    # output dirs.
+                    for grandchild in os.listdir(child):
+                        path = os.path.normpath(
+                            os.path.join(child, grandchild))
+
+                        if grandchild in _outputs_dirs and \
+                                os.path.isdir(path):
+                            rmtree(path)
 
     if args.squeaky:
         for path in _project_files:
             if os.path.exists(path):
-                os.remove(path)
+                if args.verbose:
+                    print(f"Cleaning {path}")
+                if not args.dry_run:
+                    os.remove(path)
+        # Remove any empty directories.
+        for path in os.listdir('.'):
+            if os.path.isdir(path) and len(os.listdir(path)) == 0:
+                rmtree(path)
 
     return 0
+
+def _load_project():
+    """Load the Project by using BUILD.conf and subsequent BUILD files.
+    Assumes build.ninja exists on disk.
+    """
+    project_path = None
+    project_path_re = re.compile('^#\sproject_path=(.*)$')
+
+    with open('build.ninja') as build_ninja:
+        # Try and read the Project path out of the first few lines.
+        for line in build_ninja.readlines()[:5]:
+            match = project_path_re.match(line)
+            if match:
+                project_path = match.group(1)
+
+    if project_path:
+        if not os.path.exists(project_path):
+            print('Path %s found in build.ninja does not exist.' % project_path,
+                    file=sys.stderr)
+            return (None, [])
+        return cobble.loader.load(project_path, '.')
+
+    return (None, [])
+
+def main():
+    if os.path.exists('build.ninja'):
+        try:
+            project, plugin_command_parser_generators = _load_project()
+            args = make_argument_parser(plugin_command_parser_generators).parse_args()
+            args.script_path = __file__
+
+            return args.go(project, args)
+        except cobble.loader.BuildError as e:
+            cobble.loader.print_build_error(e)
+            return 1
+    else:
+        args = make_argument_parser([]).parse_args()
+        args.script_path = __file__
+
+        # Only the 'init' command is valid if no build.ninja file exists.
+        if not (args.command == 'init' or args.command == 'clean'):
+            print('No build.ninja file found.', file=sys.stderr)
+            print("Help: Initalize the build directory using 'init' command.",
+                    file=sys.stderr)
+            return 1
+
+        return args.go(None, args)
 
 # Find the directory housing this script.
 dist_dir = os.path.dirname(os.path.realpath(__file__))
@@ -426,11 +440,10 @@ sys.path.append(os.path.join(dist_dir, 'src'))
 sys.path.append(os.path.join(dist_dir, 'vnd', 'toml'))
 
 # Now that we have the module path right, we can...
+import cobble.cmd
 import cobble.loader
 import cobble.output
 import cobble.target
 import cobble.project
 
-args = make_argument_parser().parse_args()
-args.script_path = __file__
-sys.exit(args.go(args))
+sys.exit(main())

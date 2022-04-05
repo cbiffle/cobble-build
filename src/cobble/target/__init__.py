@@ -469,3 +469,61 @@ class EvaluationError(Exception):
 
     def add_dep(self, target, env):
         self.targets.append((target, env))
+
+def print_evaluation_error(e):
+    """Prints the information captured by a EvaluationError if evaluating
+    Targets fails.
+    """
+    tgt, env = e.targets[0]
+    if env is None:
+        print('Target evaluation failed in', tgt.ident, file=sys.stderr)
+    else:
+        print('Target evaluation failed in', tgt.ident, '@', env.digest,
+                file=sys.stderr)
+    print('--- message ---', file = sys.stderr)
+    print(*e.cause.args, file=sys.stderr)
+    print('--- outer environment ---', file=sys.stderr)
+    if env is not None:
+        for k in env: print(k, '=', env[k], file=sys.stderr)
+    else:
+        print(env, file=sys.stderr)
+    print('--- dependency chain ---', file=sys.stderr)
+    for dt, de in e.targets[1:]:
+        if de is None:
+            print(' required by', dt.ident, file=sys.stderr)
+        else:
+            print(' required by', dt.ident, '@', env.digest, file=sys.stderr)
+
+def concrete_products(target, env_up, filter_pred = None):
+    """Returns an iterator over the named Products for the given Target and
+    Env, filtering on their ident if a filter predicate is provided.
+    """
+    assert target.concrete, 'target %s is not concrete' % target.name
+
+    _, product_map = target.evaluate(env_up)
+
+    for products in product_map.values():
+        for product in products:
+            for output_name, file_path in product.exposed_outputs().items():
+                result = QueryResult(
+                    target,
+                    product,
+                    output_name,
+                    file_path)
+
+                if filter_pred is not None:
+                    if filter_pred(result.ident):
+                        yield result
+                else:
+                    yield result
+
+class QueryResult(object):
+    def __init__(self, target, product, name, file_path):
+        self.target = target
+        self.product = product
+        self.name = name
+        self.file_path = file_path
+
+    @property
+    def ident(self):
+        return self.target.ident + '#' + self.name

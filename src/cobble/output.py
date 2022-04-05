@@ -27,6 +27,14 @@ def write_ninja_files(project,
     """
     writer = cobble.ninja_syntax.Writer(open('.build.ninja.tmp', 'w'))
 
+    writer.comment('Generated using \'cobble init\', do NOT edit by hand')
+
+    # Write the project root to the header of the build file. This is used by
+    # various commands to determine how to load the Project structure. Keep this
+    # in the first five lines or modify the loader._load_project.
+    writer.comment('project_path=%s' % project.root)
+    writer.newline()
+
     # Write automatic regeneration rule.
     writer.comment('Automatic regeneration')
     writer.rule(
