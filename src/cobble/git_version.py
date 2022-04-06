@@ -1,9 +1,8 @@
 import datetime
-import pathlib
 import re
 import subprocess
 
-from functools import cached_property #, cache
+from functools import cached_property, lru_cache
 from typing import List, Iterator, Optional, Union, Tuple
 
 import cobble.env
@@ -134,7 +133,7 @@ class GitClient:
         if first_parent_only:
             args.append("--first-parent")
         args.append(revision)
-        # Note this disambiguates <revision> from <filename> for cases where the revision might
+        # Note this is to disambiguate <revision> from <filename> for cases where the revision might
         # match a filename
         args.append("--")
 
@@ -208,14 +207,14 @@ class GitClient:
         matches = re.findall(r"\d+", text)
         return None if not matches else matches[0]
 
-    # functools cache can't take a list since it isn't hashable and immutable.
+    # functools cache (or lru_cache) can't take a list since it isn't hashable and immutable.
     # To get around this without changing everything everywhere we use
     # this decorator to turn the list into a tuple which is immutable and hashable
     # and then turn it back into a list as we want to mutate it and pass it to the
     # subprocess
     # We do this before using functools cache decorator
-    #@list_to_tuple
-    #@cache
+    @list_to_tuple
+    @lru_cache(maxsize=None)
     def _git(
         self, args: Union[List[str], Tuple[str]]
     ) -> subprocess.CompletedProcess:
@@ -319,7 +318,7 @@ class GitVersioner:
 
     @property
     def sha_short(self) -> str:
-        return self.sha1[0:7]
+        return self.sha1[0:8]
 
     @property
     def local_changes(self) -> LocalChanges:
