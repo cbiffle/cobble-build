@@ -1,11 +1,14 @@
 """High-level build targets."""
 
 import types
+import os.path
+import sys
+
 import cobble.env
 from cobble.env import is_delta
 from itertools import chain
 from functools import reduce
-import os.path
+
 
 # Key used to accumulate implicit dependency edges for Ninja.
 IMPLICIT = cobble.env.frozenset_key('__implicit__',
