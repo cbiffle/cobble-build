@@ -321,11 +321,13 @@ def _wrap_verb(package, verb, packages_to_visit):
     """
     def verb_wrapper(*pos, **kw):
         nonlocal packages_to_visit
-        tgt = verb(package, *pos, **kw)
-        if tgt:
-            package.add_target(tgt)
-        # TODO this is where we'd return for extend_when
-        packages_to_visit += tgt.deps
+        result = verb(package, *pos, **kw)
+        targets = result if isinstance(result, list) else [result]
+
+        for target in targets:
+            package.add_target(target)
+            # TODO this is where we'd return for extend_when
+            packages_to_visit += target.deps
 
     return verb_wrapper
 
