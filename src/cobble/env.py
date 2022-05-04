@@ -92,7 +92,8 @@ def immutable_string_key(name, default = None, readout = None, help = None):
     once added to the environment does not allow the value to change.
     """
     def from_literal(lit):
-        assert isinstance(lit, str)
+        assert isinstance(lit, str), \
+            "Expected str type for immutable string, got %s" % repr(lit)
         return lit
     return EnvKey(
         name,
@@ -108,7 +109,8 @@ def overrideable_string_key(name, default = None, readout = None,
     """Makes an EnvKey with a given 'name' that will accept a single string and
     allow overrides."""
     def from_literal(lit):
-        assert isinstance(lit, str)
+        assert isinstance(lit, str), \
+            "Expected str type for overridable string, got %s" % repr(lit)
         return lit
     return EnvKey(
         name,
@@ -123,7 +125,8 @@ def overrideable_bool_key(name, readout = None, default = None, help = None):
     """Makes an EnvKey with a given 'name' that will accept a single bool and
     allow overrides."""
     def from_literal(lit):
-        assert isinstance(lit, bool)
+        assert isinstance(lit, bool), \
+            "Expected bool for overrideable bool, got %s" % repr(lit)
         return lit
     return EnvKey(
         name,
@@ -392,7 +395,11 @@ class Env(object):
                     raise Exception("delta contained unknown key %s (=%r)"
                         % (k, v))
                 v = self.rewrite(v)
-                v = key_def.from_literal(v)
+                try:
+                    v = key_def.from_literal(v)
+                except Exception as e:
+                    ee = Exception("failed to parse literal for key %s (=%r)" % (k, v))
+                    raise ee from e
                 if k in self._dict:
                     new_value = key_def.combine(self._dict[k], v)
                     if new_value is None:
